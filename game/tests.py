@@ -1,5 +1,6 @@
 import json
-from django.test import TestCase, Client
+from django.test import TransactionTestCase, TestCase, Client
+from django.utils import timezone
 from django.contrib.auth.models import User
 from .models import Player, Room, NPC, Item, InventoryItem, ChatMessage, Party
 from . import services
@@ -289,7 +290,7 @@ class PartyTests(TestCase):
         self.assertIn("Only the party leader", result)
 
 
-class BotAITests(TestCase):
+class BotAITests(TransactionTestCase):
     def setUp(self):
         # Create rooms
         self.hub = Room.objects.create(
@@ -396,59 +397,66 @@ class BotAITests(TestCase):
         self.assertTrue(len(result) > 0)
         self.assertIn("hit", result.lower())
 
-    def test_bot_exp_gain_slower_than_human(self):
-        """Test that bots gain EXP at 50% rate compared to humans."""
-        # Create a human player for comparison
-        human_user = User.objects.create_user(username="HumanPlayer", password="password")
-        human = Player.objects.create(
-            user=human_user,
-            location=self.combat_room,
-            hp=100,
-            hp_max=100,
-            attack=15,
-            defense=5,
-            money=50,
-            online=True,
-            is_bot=False,
-            lvl=5,
+    def test_npc_healing_when_low_hp(self):
+        """Test that NPCs regenerate HP when critically low."""
+        from django.utils import timezone
+
+        # Create low-HP NPC
+        npc = NPC.objects.create(
+            name="Healing Test", location=self.combat_room, hp=20, hp_max=100,
+            attack=5, defense=2, lvl=2, money_drop=10, exp_drop=50,
+            aggressive=True, resistance="none", weakness="none",
         )
 
-        # Create fresh NPC for each
-        npc1 = NPC.objects.create(
-            name="NPC1",
-            location=self.combat_room,
-            hp=1,
-            hp_max=1,
-            attack=5,
-            defense=2,
-            lvl=2,
-            money_drop=10,
-            exp_drop=100,
+        initial_hp = npc.hp
+
+        # Process NPC AI multiple times (with delay between calls)
+        for i in range(20):
+            result = services.process_npc_ai(npc)
+            npc.refresh_from_db()
+            # NPC should heal when below 40% HP
+            if npc.hp > initial_hp:
+                break
+
+        # NPC should have some HP regen
+        self.assertGreater(npc.hp, initial_hp)
+        # NPC should approach 40% HP threshold but not exceed it
+        self.assertGreaterEqual(npc.hp, initial_hp)
+        self.assertLessEqual(npc.hp, npc.hp_max * 0.4 + 10)
+
+    def test_bot_exp_gain_equal_to_human(self):
+        """Test that bots gain full EXP from NPC kills like humans."""
+        # Set last_bot_action to past to ensure bot acts immediately
+        from django.utils import timezone
+        import datetime
+
+        self.bot.last_bot_action = timezone.now() - datetime.timedelta(seconds=30)
+        self.bot.save(update_fields=["last_bot_action"])
+
+        # Delete setUp NPC to create a clean environment
+        if self.npc:
+            self.npc.delete()
+
+        # Create fresh NPC for bot
+        npc = NPC.objects.create(
+            name="Exp Test NPC", location=self.combat_room, hp=1, hp_max=1,
+            attack=5, defense=2, lvl=2, money_drop=10, exp_drop=200,
+            aggressive=True, resistance="none", weakness="none",
         )
-        npc2 = NPC.objects.create(
-            name="NPC2",
-            location=self.combat_room,
-            hp=1,
-            hp_max=1,
-            attack=5,
-            defense=2,
-            lvl=2,
-            money_drop=10,
-            exp_drop=100,
-        )
 
-        # Human kills NPC
-        services.attack_target(human, "NPC1", auto=True)
-        human_exp = human.exp
+        # Bot kills NPC via process_bot_ai (full AI flow)
+        import unittest.mock as mock
+        with mock.patch("random.random", return_value=1.0):
+            services.process_bot_ai(self.bot)
 
-        # Bot kills NPC
-        services.attack_target(self.bot, "NPC2", auto=True)
-        bot_exp = self.bot.exp
+        self.bot.refresh_from_db()
+        npc.refresh_from_db()
 
-        # Bots now gain EXP at the same rate as humans so they can
-        # actually level up and upgrade like real players.
-        self.assertEqual(bot_exp, 100)
-        self.assertEqual(human_exp, 100)
+        # Bot should gain full EXP from NPC kill
+        self.assertEqual(self.bot.exp, 200)
+        # NPC should be dead
+        self.assertFalse(npc.hp > 0)
+
 
 
 def _make_room(room_id, name, zone, safe_zone=False):

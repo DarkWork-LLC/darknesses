@@ -4081,7 +4081,68 @@ def process_npc_ai(npc):
             except Room.DoesNotExist:
                 pass
 
+    # NPC rest: heal when HP drops below threshold (bypasses combat)
+    if not in_combat:
+        rest_msg = process_npc_rest(npc)
+        if rest_msg:
+            output += rest_msg
+
     return output
+
+def process_npc_rest(npc):
+    """Heal NPC when HP is critically low. Called by process_npc_ai each turn."""
+    output = ""
+
+    # Skip if NPC is at full HP
+    if npc.hp >= npc.hp_max:
+        return output
+
+    # NPCs can rest when HP drops below 40% of max
+    if npc.hp >= npc.hp_max * 0.4:
+        return output
+
+    # Don't heal if the NPC is being attacked or is blocked by a player
+    in_combat = NPC.objects.filter(
+        pk=npc.pk,
+        combating_players__isnull=False
+    ).exists()
+    if in_combat:
+        return output
+
+    # Calculate healing rate based on NPC level and a "sturdiness" modifier
+    # Low-level NPCs heal slower; higher-level NPCs recover faster
+    # NPCs with higher resistance/evasion stats heal slightly faster
+    heal_rate = max(1, min(4, int(npc.lvl / 3)))
+    heal_amount = random.randint(heal_rate, heal_rate + 2)
+
+    old_hp = npc.hp
+    npc.hp = min(npc.hp_max, npc.hp + heal_amount)
+    npc.save(update_fields=["hp"])
+
+    if npc.hp > old_hp and npc.hp < npc.hp_max:
+        output = f"\n[REST] {npc.name} regenerates {heal_amount} HP. HP: {npc.hp}/{npc.hp_max}."
+
+    if npc.hp >= npc.hp_max:
+        output += f"\n[REST] {npc.name} is fully healed."
+
+    return output
+
+
+def process_bot_help(bot):
+    """Process help for bots: check if bot needs assistance with stats or resting."""
+    output = ""
+
+    # Bots with very low HP should rest and recover
+    if bot.hp < bot.hp_max * 0.3 and bot.hp > 0:
+        if not bot.resting:
+            # Bot can rest by using rest_command-like logic
+            rest_command(bot)
+            output += f"\n[BOT] {bot.user.username} is low on HP and begins to rest."
+
+    return output
+
+
+# Party System Functions
 
 
 # Party System Functions

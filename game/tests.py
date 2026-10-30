@@ -457,6 +457,37 @@ class BotAITests(TransactionTestCase):
         # NPC should be dead
         self.assertFalse(npc.hp > 0)
 
+    def test_get_poll_data_processes_bots_in_other_rooms(self):
+        """Bots must be advanced by polls even when no player is in their room,
+        so they reliably wander, fight, gain EXP and level up regardless of
+        player presence (previously only room-mates were processed)."""
+        hub_player_user = User.objects.create_user(username="hubwatcher", password="pw")
+        hub_player = Player.objects.create(
+            user=hub_player_user,
+            location=self.hub,
+            hp=100,
+            hp_max=100,
+            attack=10,
+            defense=5,
+            money=50,
+            online=True,
+            lvl=5,
+        )
+
+        # Bot is waiting in the Combat Zone (a different room than the Hub)
+        self.bot.last_bot_action = None
+        self.bot.save(update_fields=["last_bot_action"])
+
+        # Hub player polls - this must advance ALL online bots, including the
+        # bot waiting in a different room.
+        services.get_poll_data(hub_player)
+
+        self.bot.refresh_from_db()
+        self.assertIsNotNone(
+            self.bot.last_bot_action,
+            "Bot in another room should still be processed on poll "
+            "(fought, wandered, or otherwise acted)",
+        )
 
 
 def _make_room(room_id, name, zone, safe_zone=False):

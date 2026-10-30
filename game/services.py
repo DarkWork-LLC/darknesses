@@ -4,6 +4,16 @@ from django.utils import timezone
 from django.db.models import Q
 from django.db import transaction
 import django.db.models as models
+
+# In-game item data (single source of truth, shared with init_game world gen)
+from game.management.commands.init_game import (
+    WEAPON_TABLE,
+    ARMOR_TABLE,
+    CONSUMABLE_TABLE,
+    DRUG_TABLE,
+    MISC_TABLE,
+)
+
 from .models import (
     Player,
     Room,
@@ -499,78 +509,224 @@ def get_status_str(player):
     return status
 
 
+def _fmt_table(rows):
+    """Format a list of (name, desc, extra) tuples into aligned help lines."""
+    lines = []
+    for name, desc, extra in rows:
+        lines.append(f"  {name:<20} {desc}{extra}")
+    return lines
+
+
 def get_help(player):
     room = player.location
-    sb = ["\n=== GRID COMMAND PROTOCOLS ==="]
+    sb = ["\n=== GRID COMMAND PROTOCOLS ===\n"]
 
-    sb.append("L/LOOK        : Scan current sector")
-    sb.append("L/LOOK <target>: Examine entity, item, or yourself (LOOK ME)")
-    sb.append("WHO           : List active terminal nodes")
-    sb.append("TOP           : Display top 25 adventurers")
-    sb.append("WALL          : View the Wall of Death (most deaths)")
-    sb.append("I/INVENTORY   : List equipped and stored hardware")
-    sb.append("ST/STATUS     : Detailed user profile data")
-    sb.append("SAY <msg>     : Message to current sector")
-    sb.append("BROADCAST <msg>: Message to the entire world")
-    sb.append("HELP/?        : Display this manual")
-    sb.append("GUIDE         : Access the full user guide in browser")
-    sb.append("USE <item>    : Use hardware/consumable/drug/scroll")
-    sb.append("TRAIN <stat>  : Spend stat points (STR, INT, WIL, AGI, HEA, CHA)")
-    sb.append("REST          : Rest to recover HP (broken by movement/combat/full HP)")
-    sb.append("DISENGAGE     : Stop combat and clear your target")
-    sb.append("PARTY <cmd>   : Party system (CREATE, INVITE <player>, ACCEPT, LEAVE, STATUS)")
-    sb.append("EXIT          : Log out and disconnect from the grid")
-    sb.append("")
-    sb.append("=== GRID PROTOCOLS ===")
-    sb.append("AFK TELEPORT  : Idling 2+ minutes in the starting Hub triggers a random")
-    sb.append("                relocation to a sector matching your level.")
-    sb.append("IDLE KICK     : 1 hour of total inactivity disconnects you. You lose")
-    sb.append("                NOTHING (credits, EXP and gear are kept).")
-    sb.append("AOE MOVES     : Some special moves/spells blast the WHOLE sector. They")
-    sb.append("                award EXP for every kill - and survivors aggro you.")
-    sb.append("")
-    sb.append("Created by <a href='https://autarkylabs.pythonanywhere.com/' target='_blank'>Dark Work</a>")
-
+    # ── Movement ──
+    sb.append("MOVEMENT / NAVIGATION")
+    sb.append("  N/NORTH, S/SOUTH, E/EAST, W/WEST   : Move to an adjacent sector")
+    sb.append("  L/LOOK                             : Describe the current sector")
+    sb.append("  L/LOOK <target>                    : Examine an NPC, item, or yourself (LOOK ME)")
     if room.exits:
-        sb.append(f"MOV/DIRS      : Navigation: {', '.join(room.exits.keys()).upper()}")
+        sb.append(f"  Exits here: {', '.join(k.upper() for k in room.exits.keys())}")
+    sb.append("")
 
-    if room.items.exists():
-        sb.append("G/GET <item>  : Retrieve hardware from ground")
+    # ── Observation ──
+    sb.append("OBSERVATION")
+    sb.append("  WHO      : List every active terminal node (players & bots) and their levels")
+    sb.append("  TOP      : Display the top 25 adventurers by level/EXP")
+    sb.append("  WALL     : View the Wall of Death (players with the most deaths)")
+    sb.append("  ST/STATUS/STATS   : Your detailed profile (stats, gear, level, EXP, karma)")
+    sb.append("  I/INVENTORY  : List equipped and carried hardware")
+    sb.append("")
 
-    npcs_exist = NPC.objects.filter(location=room, hp__gt=0).exists()
-    players_exist = Player.objects.filter(location=room, online=True).exclude(id=player.id).exists()
-    if npcs_exist or players_exist:
-        sb.append("A/KILL <target>: Regular attack (one round)")
-        sb.append("AA <target>   : Auto-attack (repeated rounds)")
+    # ── Combat ──
+    sb.append("COMBAT")
+    sb.append("  A/KILL <target>   : Regular attack (one combat round) against an NPC or player")
+    sb.append("  AA <target>       : Auto-attack (repeats every round until target dies/flees)")
+    sb.append("  DISENGAGE         : Stop combat and clear your current target")
+    sb.append("  <ability name>    : Use a class special move (e.g. BLADE, HACK, ZANS).")
+    sb.append("                    Type HELP to see the abilities your class has unlocked.")
+    sb.append("  STEAL <target>    : Attempt to steal credits from a player")
+    if not room.safe_zone:
+        sb.append("  (You are in a hostile sector - you and NPCs can engage in combat.)")
+    else:
+        sb.append("  (This is a safe zone - violence is prohibited here.)")
+    sb.append("")
 
+    # ── Inventory / Gear ──
+    sb.append("INVENTORY & GEAR")
+    sb.append("  G/GET <item>      : Pick up an item lying in the current sector")
+    sb.append("  DROP <item>       : Discard an item in the current sector")
+    sb.append("  EQUIP <item>      : Equip or unequip a weapon or piece of armor")
+    sb.append("  USE <item>        : Consume a consumable, drug, or activate a scroll")
     if InventoryItem.objects.filter(player=player).exists():
-        sb.append("EQUIP <item>  : Attach/Detach hardware")
-        sb.append("DROP <item>   : Discard hardware in current sector")
+        sb.append("  You currently have equipped/carried hardware - use EQUIP/DROP/USE on it.")
+    sb.append("")
 
-    if room.shop_name:
-        sb.append(f"LIST/LI       : View {room.shop_name} catalog")
-        sb.append("BUY <item>    : Purchase hardware")
-        sb.append("SELL <item>   : Liquidate hardware for credits")
-        sb.append("SELLALL       : Sell all unequipped hardware")
-
+    # ── Economy ──
+    sb.append("ECONOMY")
+    sb.append("  LIST/LI           : View the current sector shop's catalog")
+    sb.append("  BUY <item>        : Purchase an item from the shop")
+    sb.append("  SELL <item>       : Sell an item to the shop for credits")
+    sb.append("  SELLALL           : Sell all unequipped carried hardware")
     dealer = NPC.objects.filter(location=room, npc_type="dealer", hp__gt=0).first()
     if dealer:
-        sb.append(f"SELL <drug> to {dealer.name} : Illegal trade")
+        sb.append(f"  SELL <drug> to {dealer.name} : Illegal drug trade with the local dealer")
+    if room.shop_name:
+        sb.append(f"  Shop here: {room.shop_name}")
+    sb.append("")
 
-    sb.append("\n=== CLASS ABILITIES ===")
+    # ── Communication ──
+    sb.append("COMMUNICATION")
+    sb.append("  SAY <msg>         : Send a message to everyone in your current sector")
+    sb.append("  BROADCAST <msg>   : Send a message to the entire world")
+    sb.append("")
+
+    # ── Progression ──
+    sb.append("PROGRESSION")
+    sb.append("  TRAIN <stat>      : Spend a stat point on STR, INT, WIL, AGI, HEA, or CHA")
+    sb.append("  REST              : Recover HP while resting (broken by movement/combat/full HP)")
+    sb.append("  EXIT              : Log out and disconnect from the grid")
+    sb.append("  HELP / ?          : Display this manual")
+    sb.append("  GUIDE             : Open the full User Guide in your browser")
+    sb.append("")
+
+    # ── Grid mechanics ──
+    sb.append("GRID MECHANICS")
+    sb.append("  AFK TELEPORT : Idling 2+ minutes in the Hub relocates you to a level-")
+    sb.append("                 matched sector automatically.")
+    sb.append("  IDLE KICK    : 1 hour of total inactivity disconnects you. You lose NOTHING")
+    sb.append("                 (credits, EXP, and gear are all kept).")
+    sb.append("  LEVEL UP     : Defeat NPCs/players to earn EXP. Every level grants +1 stat")
+    sb.append("                 point (use TRAIN to spend it). Humans gain 1.5x stat points.")
+    sb.append("  KARMA        : Alignment from -100 (Villain) to +100 (Saint). Killing evil")
+    sb.append("                 NPCs raises karma; attacking players lowers it. Karma affects")
+    sb.append("                 NPC aggression and some abilities.")
+    sb.append("  STEALTH      : Hide in shadows to avoid detection and set up backstabs.")
+    sb.append("  BOTS         : AI-controlled players wander the grid, fight, and level up")
+    sb.append("                 just like humans - they appear with a (bot) marker on WHO.")
+    sb.append("")
+
+    # ── Races ──
+    sb.append("=== RACES (AUGMENTATION PATHS) ===")
+    sb.append("Each race grants stat modifiers and a unique Race Trait (picked at creation):")
+    race_rows = [
+        ("Human", "CHA+10 WIL+5 STR-5 HEA-5", "Versatile Potential: 1.5x stat points per level."),
+        ("Elf", "AGI+8 WIL+4 HEA-5", "Ancient Grace: +10% critical hit chance."),
+        ("Goblin", "CHA+10 AGI+5 STR-8", "Street Cunning: +15% chance for extra loot from NPCs."),
+        ("Mutant", "Random (+7/-3)", "Adaptive Biology: Stats can exceed normal caps by 5."),
+        ("Cyborg", "STR+5 HEA+2 AGI-2 INT+2", "Cybernetic Resilience: +10% resistance to debuffs."),
+        ("Android", "INT+8 WIL+2 CHA-5 HEA-2", "Systematic Mind: +15% mana efficiency."),
+        ("Bio-hacked", "HEA+5 STR+2 CHA-2", "Adrenal Efficiency: 20% faster healing."),
+        ("Void-Walker", "WIL+12 AGI+5 STR-8 HEA-4", "Phase Shift: 10% chance to dodge any attack."),
+        ("Synth-Soul", "INT+15 CHA-10", "Digital Presence: +20% stealth effectiveness."),
+        ("Orc", "AGI+10 INT-10 CHA-5", "Overclocked: +1 extra attack per combat round."),
+    ]
+    for name, mods, trait in race_rows:
+        sb.append(f"  {name:<14} {mods:<26} | {trait}")
+    sb.append("")
+
+    # ── Stats ──
+    sb.append("=== STAT REFERENCE ===")
+    sb.append("  STR  Strength   - Physical power, raises Attack and carrying capacity.")
+    sb.append("  INT  Intelligence - Mana pool and ability damage (tech/psychic classes).")
+    sb.append("  WIL  Willpower  - Mana regeneration and mental defense.")
+    sb.append("  AGI  Agility    - Defense, critical hit chance, and turn order.")
+    sb.append("  HEA  Health     - Maximum HP and healing effectiveness.")
+    sb.append("  CHA  Charisma   - Social interactions, party influence, shop prices.")
+    sb.append("")
+
+    # ── Classes ──
+    sb.append("=== CLASSES & ABILITIES ===")
+    sb.append("Abilities are learned at the listed level and used by typing their name or acronym.")
+    sb.append("Only abilities your character is high enough level to know are shown below.")
     moves = CLASS_MOVES.get(player.game_class, [])
+    shown_any = False
     for lvl, name, acronym, desc in moves:
         if player.lvl >= lvl:
-            sb.append(f"  {name.upper():15} ({acronym}) (Lv {lvl}): {desc}")
+            sb.append(f"  {name.upper():14} ({acronym:<4}) Lv{lvl:<3} - {desc}")
+            shown_any = True
+    if not shown_any:
+        sb.append("  (No abilities unlocked yet - your first ability is learned at level 1.)")
+    sb.append("")
+    sb.append("CLASS OVERVIEW:")
+    class_overview = [
+        ("Street Samurai", "Melee physical fighter - blade and fire strikes."),
+        ("Netrunner", "Tech caster - water/ice, air, and system-corruption damage."),
+        ("Techie", "Drone and gadget specialist - summons and tech damage."),
+        ("Medie", "Healer - restores HP and removes afflictions."),
+        ("Fixer", "Social operative - credits, haggling, and buffs."),
+        ("Thief", "Stealthy skulker - backstab and extra loot."),
+        ("Heavy", "Tank - high HP, heavy weapons, armor focus."),
+        ("Psycher", "Psychic - mind and willpower-based abilities."),
+        ("Warlock", "Dark caster - life drain and curses."),
+        ("Priest", "Holy - healing, protection, and light damage."),
+        ("Trickster", "Chaos - random effects and misdirection."),
+        ("Jade Dragon", "Martial artist - unarmed strikes and ki damage."),
+        ("Ninja", "Shadow warrior - stealth, dodge, and precision strikes."),
+    ]
+    for cname, cdesc in class_overview:
+        sb.append(f"  {cname:<16} - {cdesc}")
+    sb.append("")
 
-    sb.append("\n=== CHARACTER CREATION ===")
-    sb.append("STATS: STR(Attack), AGI(Defense/Crit), HEA(HP), INT(Mana/Abilities), WIL(Mana), CHA(Social)")
-    sb.append("RACES: Human(versatile), Elf(agile/crit), Goblin(cunning/loot), Mutant(adaptive/tank)")
-    sb.append("       Cyborg(resilient), Android(mana-efficient), Bio-hacked(healing), Void-Walker(dodge)")
-    sb.append("       Synth-Soul(stealth), Orc(overclocked)")
-    sb.append("CLASSES: Street Samurai(melee), Netrunner(tech), Techie(drones), Medie(healer)")
-    sb.append("         Fixer(social), Thief(stealth), Heavy(tank), Psycher(psychic), Warlock(dark)")
-    sb.append("         Priest(holy), Trickster(chaos), Jade Dragon(martial), Ninja(shadow)")
+    # ── Items ──
+    sb.append("=== HARDWARE & ITEMS ===")
+    sb.append("Weapons, armor, consumables, and drugs can be bought at shops, looted from")
+    sb.append("defeated NPCs, or picked up from the ground. Use GET/DROP/EQUIP/USE.")
+
+    def _rarity_tag(rarity):
+        tags = {
+            "common": "(common)", "uncommon": "(uncommon)", "rare": "(rare)",
+            "epic": "(epic)", "legendary": "(legendary)",
+        }
+        return tags.get(rarity, f"({rarity})")
+
+    sb.append("\n-- Weapons --")
+    weapon_rows = []
+    for name, desc, atk, pr, rarity, speed, subtype, bonuses in WEAPON_TABLE:
+        bonus_txt = ""
+        if bonuses:
+            kv = ", ".join(f"{k.upper()}+{v}" for k, v in bonuses.items())
+            bonus_txt = f" [{kv}]"
+        weapon_rows.append((name, f"{desc}  ATK+{atk}  {_rarity_tag(rarity)}{bonus_txt}", ""))
+    sb.extend(_fmt_table(weapon_rows))
+
+    sb.append("\n-- Armor --")
+    armor_rows = []
+    for name, desc, dfn, pr, rarity, subtype, bonuses in ARMOR_TABLE:
+        bonus_txt = ""
+        if bonuses:
+            kv = ", ".join(f"{k.upper()}+{v}" for k, v in bonuses.items())
+            bonus_txt = f" [{kv}]"
+        armor_rows.append((name, f"{desc}  DEF+{dfn}  {_rarity_tag(rarity)}{bonus_txt}", ""))
+    sb.extend(_fmt_table(armor_rows))
+
+    sb.append("\n-- Consumables --")
+    cons_rows = []
+    for name, desc, pr, rarity, heal in CONSUMABLE_TABLE:
+        heal_txt = f" heals {heal} HP" if heal else ""
+        cons_rows.append((name, f"{desc}{heal_txt}  {_rarity_tag(rarity)}", ""))
+    sb.extend(_fmt_table(cons_rows))
+
+    sb.append("\n-- Drugs --")
+    drug_rows = []
+    for name, desc, pr, rarity, addic, bonuses in DRUG_TABLE:
+        bonus_txt = ""
+        if bonuses:
+            kv = ", ".join(f"{k.upper()}+{v}" for k, v in bonuses.items())
+            bonus_txt = f" [{kv}]"
+        drug_desc = f"{desc}  addiction {addic:.0%}  {_rarity_tag(rarity)}{bonus_txt}"
+        drug_rows.append((name, drug_desc, ""))
+    sb.extend(_fmt_table(drug_rows))
+
+    sb.append("\n-- Miscellaneous --")
+    misc_rows = []
+    for name, desc, pr, rarity in MISC_TABLE:
+        misc_rows.append((name, f"{desc}  {_rarity_tag(rarity)}", ""))
+    sb.extend(_fmt_table(misc_rows))
+
+    sb.append("")
+    sb.append("=== GRID TERMINAL CREATED BY DARK WORK ===")
 
     return "\n".join(sb)
 
@@ -3943,12 +4099,16 @@ def get_poll_data(player):
     # Process resting HP regeneration
     rest_msg = process_resting(player)
 
-    # Only process bot AI on a fraction of polls to reduce load.
-    # Bots are primarily processed by the background `process_bots` command.
-    # We only process bots relevant to this player's room.
+    # Process AI for ALL online bots (not just those in this player's room).
+    # Bots only act when process_bot_ai() is invoked, and the background
+    # `process_bots` daemon is not always running. By advancing every online
+    # bot on each poll, bots reliably wander, fight NPCs, gain EXP and level
+    # up even when no human player happens to be in their sector. Each bot is
+    # internally throttled by last_bot_action (10-30s), so most polls return
+    # immediately without acting.
     bot_msg = ""
-    room_bots = Player.objects.filter(is_bot=True, online=True, location=player.location)
-    for bot in room_bots:
+    all_bots = Player.objects.filter(is_bot=True, online=True)
+    for bot in all_bots:
         bot_result = process_bot_ai(bot)
         if bot_result:
             bot_msg += bot_result

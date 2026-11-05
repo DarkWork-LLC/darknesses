@@ -38,6 +38,7 @@ RACE_CHARACTERISTICS = {
     "Orc": "Overclocked: +1 extra attack per combat round.",
     "Elf": "Ancient Grace: +10% crit chance, natural affinity for precision.",
     "Goblin": "Street Cunning: +15% chance to find extra loot from NPCs.",
+    "Dark Elf": "Sunlight Sensitivity: -10% resistances in daylight, Night Vision: +15% perception in darkness, Shadow Walk: +10% chance to escape melee combat.",
 }
 
 
@@ -1319,6 +1320,30 @@ def teleport_player_to_room(player, room, reason):
     player.notification += f"\n[TELEPORT] {reason} You materialize in {room.name}."
     player.save(update_fields=["notification"])
     return player
+
+
+def transport_player(player, destination=None):
+    """Transport a player to another transporter room. With no destination,
+    list available transporters."""
+    transporters = list(Room.objects.filter(transporter_name__isnull=False))
+    if not destination:
+        if not transporters:
+            return "No transporters available."
+        lines = ["=== Transporters ==="]
+        for t in transporters:
+            lines.append(f"  {t.transporter_name} ({t.zone}) - {t.name}")
+        lines.append("Use TRANSPORT <name or zone> to travel.")
+        return "\n".join(lines)
+    dest = destination.strip().lower()
+    target = None
+    for t in transporters:
+        if dest in (t.transporter_name or "").lower() or dest == (t.zone or "").lower():
+            target = t
+            break
+    if not target:
+        return f"No transporter found for '{destination}'."
+    teleport_player_to_room(player, target, f"Transporter link to {target.transporter_name}.")
+    return f"You transport to {target.transporter_name}."
 
 
 def kick_player_for_inactivity(player):
@@ -3923,6 +3948,31 @@ def bot_try_use_ability(bot, target_name):
     return True
 
 
+def distance_to_nearest_shop(room):
+    """BFS distance (in rooms) from room to nearest shop room."""
+    if not room:
+        return 999
+    if getattr(room, "shop_name", None):
+        return 0
+    from collections import deque
+    seen = {room.id}
+    q = deque([(room, 0)])
+    while q:
+        cur, d = q.popleft()
+        for dest_id in (cur.exits or {}).values():
+            if dest_id in seen:
+                continue
+            try:
+                nxt = Room.objects.get(id=dest_id)
+            except Room.DoesNotExist:
+                continue
+            if getattr(nxt, "shop_name", None):
+                return d + 1
+            seen.add(nxt.id)
+            q.append((nxt, d + 1))
+    return 999
+
+
 def process_bot_ai(bot):
     """Process AI behavior for bot players. Called during polling or by process_bots command."""
     if not bot.is_bot or not bot.online:
@@ -3987,11 +4037,47 @@ def process_bot_ai(bot):
                     target_npc = random.choice(valid_npcs)
 
     # Execute combat (without broadcasting to players - bots fight silently)
+    # Bots only fight 3-4 rooms away from shops and starting rooms.
+    # Check distance to nearest shop
+    shop_dist = distance_to_nearest_shop(room)
+    # Check distance to nearest starting room (hub, room ID 1)
+    if room.id == 1:
+        start_dist = 0
+    else:
+        from collections import deque
+        seen = {room.id}
+        q = deque([(room, 0)])
+        start_dist = 999
+        while q:
+            cur, d = q.popleft()
+            if cur.id == 1:
+                start_dist = d
+                break
+            for dest_id in (cur.exits or {}).values():
+                if dest_id in seen:
+                    continue
+                try:
+                    nxt = Room.objects.get(id=dest_id)
+                except Room.DoesNotExist:
+                    continue
+                seen.add(nxt.id)
+                q.append((nxt, d + 1))
+            else:
+                continue
+            break
+
+    # Bot should move away if too close to shop (3-4 rooms) or starting room (3-4 rooms)
+    if (target_npc or target_player) and (shop_dist <= 4 or start_dist <= 4 and start_dist != 999):
+        # Too close to a shop or starting room: move away instead of fighting.
+        if room.exits:
+            direction = random.choice(list(room.exits.keys()))
+            move_player(bot, direction)
+        return ""
     if target_npc or target_player:
         target_name = target_npc.name if target_npc else target_player.user.username
-        # Mix class abilities into the fight (~35% of engagements) so bots
+        # Mix class abilities into the fight (~60% of engagements) so bots
         # actually fight like players and gain EXP/levels.
-        if random.random() < 0.35 and bot_try_use_ability(bot, target_name):
+        if random.random() < 0.6 and bot_try_use_ability(bot, target_name):
             return ""
         attack_target(bot, target_name, auto=True)
         return ""
@@ -4049,6 +4135,45 @@ def process_bot_ai(bot):
             ii.save()
             bot_auto_equip(bot, item)
 
+    # Bot shopping: buy items from shop that match class needs
+    # 30% chance to browse shop if in a shop room
+    if bot.location.shop_name and random.random() < 0.3:
+        # Get class-appropriate weapons and armor from GEAR_LIMITS
+        from game.services import GEAR_LIMITS
+        limits = GEAR_LIMITS.get(bot.game_class, {})
+        
+        # Try to buy a weapon if bot doesn't have one or wants upgrade
+        if not limits.get("weapon") or random.random() < 0.5:
+            # List available weapons and try to buy one
+            shop_items = bot.location.shop_inventory.all()
+            weapons = [i for i in shop_items if i.item_type == "weapon"]
+            if weapons:
+                # Buy a random weapon that's compatible or best available
+                valid_weapons = [w for w in weapons if not limits.get("weapon") or w.subtype in limits["weapon"]]
+                if valid_weapons:
+                    weapon = random.choice(valid_weapons)
+                    if bot.money >= weapon.price:
+                        buy_item(bot, weapon.name)
+        
+        # Try to buy armor if bot doesn't have any
+        current_armor = InventoryItem.objects.filter(player=bot, equipped=True, item__item_type="armor").first()
+        if not current_armor:
+            armor = [i for i in shop_items if i.item_type == "armor"]
+            if armor and bot.money >= armor[0].price:
+                buy_item(bot, armor[0].name)
+    
+    # Bot selling: sell unequipped items to shop
+    if not bot.location.shop_name:
+        return ""
+    
+    # Sell some unequipped items (20% chance)
+    if random.random() < 0.2:
+        unequipped = InventoryItem.objects.filter(player=bot, equipped=False)
+        if unequipped.exists():
+            # Sell 1 random unequipped item
+            item_to_sell = random.choice(list(unequipped))
+            sell_item(bot, item_to_sell.item.name)
+
     # Auto-train stats if bot has stat points
     if bot.stat_points > 0:
         # Train primary stat based on class
@@ -4074,6 +4199,13 @@ def process_bot_ai(bot):
     # Wander: actively hunt for NPCs to fight. Bots linger a little in rooms
     # that still have targets but leave empty sectors quickly (they used to
     # get stuck oscillating in dead zones).
+    # Use transporters to get nearer to where they level up.
+    zones = get_level_appropriate_zones(bot.lvl)
+    if room.zone not in zones:
+        transporters = list(Room.objects.filter(transporter_name__isnull=False, zone__in=zones))
+        if transporters:
+            teleport_player_to_room(bot, random.choice(transporters), "Transporter hop to a leveling zone.")
+            return ""
     npcs_nearby = npcs.exists()
     if room.exits:
         move_chance = 0.35 if npcs_nearby else 0.85

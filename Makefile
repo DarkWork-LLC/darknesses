@@ -1,6 +1,6 @@
 # DarknessMUD Django Makefile
 
-.PHONY: help venv setup lint clean lightclean migrate init fresh run repair test deploy-init mud
+.PHONY: clean deploy-init fresh help init lightclean lint migrate mud repair run setup test venv
 
 VENV := .venv
 PYTHON := $(VENV)/bin/python

@@ -1696,6 +1696,8 @@ class Command(BaseCommand):
             map_x=0,
             map_y=0,
         )
+        hub.transporter_name = "Hub Transporter"
+        hub.save()
         all_rooms.append(hub)
 
         rooms_per_zone = max(10, target_count // len(zones))
@@ -1721,6 +1723,7 @@ class Command(BaseCommand):
                     )
                     if zone.get("shop"):
                         entry.shop_name = zone["shop"]
+                    entry.transporter_name = f"{zone['zone_id'].title()} Transporter"
                     entry.save()
                     self._connect_rooms(start_room, entry, d, opp[d])
                     occupied_coords.add((new_x, new_y))
@@ -1730,6 +1733,32 @@ class Command(BaseCommand):
                 continue
             zone_rooms.append(entry)
             prev = entry
+            
+            # Add a safe room with transporter in this zone
+            # Safe room should be placed after entry, typically 2-3 rooms in
+            safe_dirs = [\"north\", \"south\", \"east\", \"west\"]
+            random.shuffle(safe_dirs)
+            safe_room = None
+            for d in safe_dirs:
+                dx, dy = dir_coords[d]
+                new_x, new_y = entry.map_x + dx, entry.map_y + dy
+                if (new_x, new_y) not in occupied_coords:
+                    safe_room = Room.objects.create(
+                        name=f\"{zone['name']} - Safe Zone\",
+                        description=f\"A safe haven within {zone['name']}. {zone['desc']}",
+                        zone=zone[\"zone_id\"],
+                        theme=zone[\"theme\"],
+                        map_x=new_x,
+                        map_y=new_y,
+                        safe_zone=True,
+                    )
+                    safe_room.transporter_name = f\"{zone['zone_id'].title()} Safe Transporter\"
+                    safe_room.save()
+                    break
+            
+            if safe_room:
+                zone_rooms.append(safe_room)
+                prev = safe_room
 
             for i in range(1, rooms_per_zone):
                 is_boss_room = i >= rooms_per_zone - 2

@@ -107,6 +107,14 @@ def register_view(request):
                     "agi_stat": 10,
                     "int_stat": 10,
                 },
+                "Dark Elf": {
+                    "str_stat": 10,
+                    "int_stat": 10,
+                    "wil_stat": 11,
+                    "agi_stat": 12,
+                    "hea_stat": 8,
+                    "cha_stat": 10,
+                },
                 "Void-Walker": {
                     "wil_stat": 14,
                     "agi_stat": 11,
@@ -339,6 +347,8 @@ def command_view(request):
             output = services.use_item(player, args)
         elif command == "train":
             output = services.train_stat(player, args)
+        elif command == "transport":
+            output = services.transport_player(player, args)
         elif command == "rest":
             output = services.rest_command(player)
         elif command == "disengage":

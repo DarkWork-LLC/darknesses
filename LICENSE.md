@@ -1,11 +1,11 @@
-Darkness BBS - Proprietary License
+Darknesses BBS - Proprietary License
 
-Copyright (c) 2024 autarkylabs and timotheuzi@hotmail.com
+Copyright (c) 2024 dark work, LLC and timotheuzi@hotmail.com
 
 All rights reserved.
 
 This software and associated documentation files (the "Software") are the 
-proprietary property of autarkylabs. Unauthorized copying, modification, 
+proprietary property of dark work, LLC. Unauthorized copying, modification, 
 distribution, or use of this Software, via any medium, is strictly prohibited.
 
 Permission is granted to use this Software for personal, non-commercial 

@@ -65,7 +65,11 @@ Each race grants a specific set of stat modifiers and a unique **Race Trait**:
 | **Synth-Soul** | INT+15, CHA-10 | **Digital Presence**: +20% stealth effectiveness. |
 | **Orc, AGI+10, INT-10, CHA-5 | **Overclocked**: +1 extra attack per combat round. |
 | **Elf** | AGI+8, WIL+4, HEA-5 | **Ancient Grace**: +10% critical hit chance. |
-| **Goblin** | CHA+10, AGI+5, STR-8 | **Street Cunning**: +15% chance for extra loot. |
+| **Dark Elf** | AGI+8, WIL+4, HEA-5 | **Sunlight Sensitivity**: -10% resistances in daylight, **Night Vision**: +15% perception in darkness, **Shadow Walk**: +10% chance to escape melee combat. |
+| **Goblin** | CHA+10, AGI+5, STR-8 | **Street Cunning**: +15% chance for extra loot.
+
+### Transporters
+Transporters are special rooms that allow players to quickly travel between zones. Each zone hub room contains a transporter that can teleport you to other zone hubs. Look for the transporter examine option or use the `TRANSPORT` command. Transporters are also used by bots to navigate to level-appropriate hunting grounds. |
 
 ### Stats Reference
 - **STR (Strength)**: Physical power. Increases Attack and carrying capacity. Essential for melee classes.

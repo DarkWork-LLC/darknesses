@@ -54,6 +54,7 @@ class Room(models.Model):
     description = models.TextField()
     exits = models.JSONField(default=dict)
     shop_name = models.CharField(max_length=255, null=True, blank=True)
+    transporter_name = models.CharField(max_length=255, null=True, blank=True)
     safe_zone = models.BooleanField(default=False)
     zone = models.CharField(max_length=100, default="hub")  # zone identifier
     theme = models.CharField(max_length=100, default="urban")  # visual theme

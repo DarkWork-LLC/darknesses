@@ -1865,21 +1865,27 @@ def combat_round(player):
         target.hp -= dmg
         target.save(update_fields=["hp"] if isinstance(target, Player) else ["hp"])
         if is_crit:
+# Bloody critical hit - add description after damage line
+            output += f" {target_name}'s blood sprays across the neon-lit floor!"
             output += f"\n[CRIT] You hit {target_name} for {dmg} damage with {weapon_name}!"
-            # Broadcast crit to room
+            # Bloody broadcast crit description
             broadcast_combat_to_room(
                 player,
                 target_name,
-                f"[CRIT] {player.user.username} hits {target_name} for {dmg} damage with {weapon_name}!",
+                f"[CRIT] {player.user.username} hits {target_name} for {dmg} damage with {weapon_name}! {target_name}'s blood sprays across the neon-lit floor!",
                 room_players,
             )
+# Bloody regular hit - add description after damage line
+            output += f" {target_name}'s blood sprays as synthetic circuits spark!"
         else:
             output += f"\nYou hit {target_name} for {dmg} damage with {weapon_name}."
             # Broadcast hit to room
+# Bloody broadcast hit description (removed duplicate opening)
+# Bloody broadcast hit description
             broadcast_combat_to_room(
                 player,
                 target_name,
-                f"{player.user.username} hits {target_name} for {dmg} damage with {weapon_name}.",
+                f"{player.user.username} hits {target_name} for {dmg} damage with {weapon_name}. {target_name}'s blood sprays in the neon gloom!",
                 room_players,
             )
 

@@ -1476,6 +1476,11 @@ AOE_MOVES = {
     "orbital_laser": (2.2, "fire"),  # Techie 50
     "titan_fall": (2.0, "earth"),  # Heavy 50
     "chaos_theory": (1.8, "air"),  # Trickster 50
+    # New AOE moves with item interaction
+    "shrapnel_blast": (1.3, "physical"),  # Blasts shrapnel, items may break - Technician 25
+    "corrosive_blast": (1.4, "earth"),  # Acid dissolves items - Alchemist 30
+    "implosion": (1.6, "physical"),  # Crushes everything including items - Psion 35
+    "chronosphere": (1.5, "air"),  # Time distortion affects all matter - Chronomancer 40
 }
 
 # Bonus damage multiplier AOE moves get against their primary target
@@ -1671,11 +1676,34 @@ def execute_room_aoe(player, ability_name, mult, element, req_lvl):
             if killed:
                 kill_count += 1
 
+    # 3. Affect every item in the room (items may break/destroy)
+    for item in room.items.all():
+        # Items have a chance to break based on AOE damage
+        item_damage_mult = 0.5  # Items take half damage compared to NPCs
+        item_power_val = int(final_atk * item_damage_mult)
+        item_dmg, _ = calculate_damage(
+            item_power_val,
+            item.defense_bonus,
+            element=element,
+            crit_chance=crit_chance,
+        )
+        # Chance for item to break (based on damage relative to item "toughness")
+        # Common items break on 30% hit, rare on 10%, etc.
+        rarity_break_chance = {"common": 0.3, "uncommon": 0.2, "rare": 0.1, "epic": 0.05, "legendary": 0.02}
+        break_chance = rarity_break_chances.get(item.rarity, 0.2)
+        if random.random() < break_chance:
+            # Item breaks - remove it from the room and any player carrying it
+            item_name = item.name
+            item.delete()
+            msg = f"\n[AOE] {item_name} was destroyed in the blast!"
+            res += msg
+            hit_targets += 1
+
     if hit_targets == 0:
         res += "\nThe sector is empty. The blast dissipates harmlessly."
         return res
 
-    res += f"\n[AOE] {hit_targets} entities caught in the blast radius. ({kill_count} down)"
+    res += f"\n[AOE] {hit_targets} entities caught in the blast radius."
     return aoe_aggro_survivors(player, res, room, ability_name)
 
 

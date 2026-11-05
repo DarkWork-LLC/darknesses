@@ -759,11 +759,11 @@
 
             var cols = maxX - minX + 1;
             var rows = maxY - minY + 1;
-            var cellW = (w - 30) / Math.max(cols, 1);
-            var cellH = (h - 30) / Math.max(rows, 1);
+            var cellW = (w - 20) / Math.max(cols, 1);
+            var cellH = (h - 20) / Math.max(rows, 1);
             // Ensure minimum cell size so rooms are still visible
-            cellW = Math.max(8, cellW);
-            cellH = Math.max(8, cellH);
+            cellW = Math.max(6, cellW);
+            cellH = Math.max(6, cellH);
             var offsetX = (w - cols * cellW) / 2;
             var offsetY = (h - rows * cellH) / 2;
 

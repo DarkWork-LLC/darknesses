@@ -1736,7 +1736,7 @@ class Command(BaseCommand):
             
             # Add a safe room with transporter in this zone
             # Safe room should be placed after entry, typically 2-3 rooms in
-            safe_dirs = [\"north\", \"south\", \"east\", \"west\"]
+            safe_dirs = ["north", "south", "east", "west"]
             random.shuffle(safe_dirs)
             safe_room = None
             for d in safe_dirs:
@@ -1744,6 +1744,7 @@ class Command(BaseCommand):
                 new_x, new_y = entry.map_x + dx, entry.map_y + dy
                 if (new_x, new_y) not in occupied_coords:
                     safe_room = Room.objects.create(
+                        name=f\"{zone['name']} - Safe Zone\",
                         name=f\"{zone['name']} - Safe Zone\",
                         description=f\"A safe haven within {zone['name']}. {zone['desc']}",
                         zone=zone[\"zone_id\"],

@@ -1744,8 +1744,8 @@ class Command(BaseCommand):
                 new_x, new_y = entry.map_x + dx, entry.map_y + dy
                 if (new_x, new_y) not in occupied_coords:
                     safe_room = Room.objects.create(
-                        name=f"{zone[chr(39)+chr(39).join([chr(39)])]} - Safe Zone",
-                        description=f"A safe haven within {zone[chr(39)+chr(39).join([chr(39)])]}. {zone[chr(39)+chr(39).join([chr(39)])]}",
+                        name=f"{zone['name']} - Safe Zone",
+                        description=f"A safe haven within {zone['name']}. {zone['desc']}",
                         zone=zone["zone_id"],
                         theme=zone["theme"],
                         map_x=new_x,

@@ -5102,4 +5102,20 @@ def process_poison_bleed_effects(player):
         player.bleed_duration = 0
         player.save(update_fields=["poison_duration", "bleed_duration"])
 
+
+# ── Weapon Duration Helpers ─────────────────────────────────────────────────
+
+def target_weapon_poison_ticks(weapon):
+    """Calculate poison tick duration from a weapon's poison damage value."""
+    if hasattr(weapon, "poison_damage") and weapon.poison_damage > 0:
+        return max(1, weapon.poison_damage * 2 + 1)
+    return 0
+
+
+def target_weapon_bleed_ticks(weapon):
+    """Calculate bleed tick duration from a weapon's bleed duration value."""
+    if hasattr(weapon, "bleed_duration") and weapon.bleed_duration > 0:
+        return max(1, weapon.bleed_duration * 2 + 1)
+    return 0
+
     return output

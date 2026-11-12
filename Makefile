@@ -25,6 +25,7 @@ venv: $(VENV)/bin/python ## Create virtual environment and install requirements
 $(VENV)/bin/python:
 	@echo "Creating virtual environment..."
 	python3 -m venv $(VENV)
+	$(PYTHON) -m ensurepip --upgrade
 	$(PYTHON) -m pip install --upgrade pip
 
 setup: venv ## Install dependencies
@@ -80,11 +81,12 @@ deploy-migrate: ## Run database migrations (PythonAnywhere/production)
 deploy-init: deploy-migrate ## Initialize game world data (PythonAnywhere/production)
 	$(PYTHONANYWHERE_MANAGE) init_game --settings=$(PYTHONANYWHERE_SETTINGS)
 
-run: venv ## Run the Django development server (kills existing ones first)
+run: venv ## Run the Django development server (kills existing ones first, logs to run.log)
 	@echo "Killing existing python processes..."
 	-pkill -9 python || true
-	$(MANAGE) migrate --settings=$(SETTINGS)
-	$(MANAGE) runserver 0.0.0.0:8008 --settings=$(SETTINGS)
+	@echo "Starting Django development server on 0.0.0.0:8008 (log: run.log)..."
+	$(MANAGE) migrate --settings=$(SETTINGS) 2>&1 | tee -a run.log
+	$(MANAGE) runserver 0.0.0.0:8008 --settings=$(SETTINGS) 2>&1 | tee -a run.log &
 
 mud: venv ## Run the MUD Telnet server for MUD clients (kills existing ones first)
 	@echo "Killing existing python processes..."

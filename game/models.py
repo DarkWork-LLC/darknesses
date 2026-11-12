@@ -127,6 +127,12 @@ class Player(models.Model):
     addiction_points = models.IntegerField(default=0)  # 0 to 100
     withdrawal_timer = models.IntegerField(default=0)  # ticks since last use
 
+    # Poison/Bleed Status Effects
+    poison_duration = models.IntegerField(default=0)  # Ticks remaining
+    poison_damage = models.IntegerField(default=0)  # Damage per tick
+    bleed_duration = models.IntegerField(default=0)  # Ticks remaining
+    bleed_damage = models.IntegerField(default=0)  # Damage per tick
+
     # Combat state
     last_combat_npc = models.ForeignKey(
         "NPC", on_delete=models.SET_NULL, null=True, blank=True, related_name="combating_players"

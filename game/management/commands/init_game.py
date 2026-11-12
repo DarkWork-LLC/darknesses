@@ -1680,6 +1680,66 @@ class Command(BaseCommand):
         r1.save()
         r2.save()
 
+    def _ensure_all_connected(self, hub, dir_coords, opp):
+        from collections import deque
+
+        visited = set()
+        queue = deque([hub.id])
+        while queue:
+            rid = queue.popleft()
+            if rid in visited:
+                continue
+            visited.add(rid)
+            room = Room.objects.get(id=rid)
+            for direction, target_id in room.exits.items():
+                if target_id not in visited:
+                    queue.append(target_id)
+
+        all_rooms = list(Room.objects.all())
+        unreachable = [r for r in all_rooms if r.id not in visited]
+
+        for room in unreachable:
+            connected = False
+            for direction, (dx, dy) in dir_coords.items():
+                target_x, target_y = room.map_x + dx, room.map_y + dy
+                target = Room.objects.filter(
+                    map_x=target_x, map_y=target_y, id__in=visited
+                ).first()
+                if target and direction not in room.exits:
+                    opp_dir = opp[direction]
+                    self._connect_rooms(room, target, direction, opp_dir)
+                    visited.add(room.id)
+                    queue = deque([room.id])
+                    while queue:
+                        cur_id = queue.popleft()
+                        if cur_id in visited:
+                            continue
+                        visited.add(cur_id)
+                        cur = Room.objects.get(id=cur_id)
+                        for d2, t2 in cur.exits.items():
+                            if t2 not in visited:
+                                queue.append(t2)
+                    connected = True
+                    break
+
+            if not connected:
+                room.refresh_from_db()
+                exits = dict(room.exits)
+                exits["secret"] = hub.id
+                room.exits = exits
+                room.save()
+                visited.add(room.id)
+                queue = deque([room.id])
+                while queue:
+                    cur_id = queue.popleft()
+                    if cur_id in visited:
+                        continue
+                    visited.add(cur_id)
+                    cur = Room.objects.get(id=cur_id)
+                    for d2, t2 in cur.exits.items():
+                        if t2 not in visited:
+                            queue.append(t2)
+
     def _create_rooms(self, zones, target_count):
         all_rooms = []
         opp = {"north": "south", "south": "north", "east": "west", "west": "east"}
@@ -1705,28 +1765,33 @@ class Command(BaseCommand):
 
         for zone in zones:
             zone_rooms = []
-            start_room = random.choice(all_rooms)
+            # Try every existing room as a potential connection point so zones
+            # are never skipped because one random room is surrounded.
             entry = None
-            dirs = ["east", "west", "north", "south"]
-            random.shuffle(dirs)
-            for d in dirs:
-                dx, dy = dir_coords[d]
-                new_x, new_y = start_room.map_x + dx, start_room.map_y + dy
-                if (new_x, new_y) not in occupied_coords:
-                    entry = Room.objects.create(
-                        name=f"{zone['name']} - Entry",
-                        description=f"Entry to {zone['name']}. {zone['desc']}",
-                        zone=zone["zone_id"],
-                        theme=zone["theme"],
-                        map_x=new_x,
-                        map_y=new_y,
-                    )
-                    if zone.get("shop"):
-                        entry.shop_name = zone["shop"]
-                    entry.transporter_name = f"{zone['zone_id'].title()} Transporter"
-                    entry.save()
-                    self._connect_rooms(start_room, entry, d, opp[d])
-                    occupied_coords.add((new_x, new_y))
+            random.shuffle(all_rooms)
+            for start_room in all_rooms:
+                dirs = ["east", "west", "north", "south"]
+                random.shuffle(dirs)
+                for d in dirs:
+                    dx, dy = dir_coords[d]
+                    new_x, new_y = start_room.map_x + dx, start_room.map_y + dy
+                    if (new_x, new_y) not in occupied_coords:
+                        entry = Room.objects.create(
+                            name=f"{zone['name']} - Entry",
+                            description=f"Entry to {zone['name']}. {zone['desc']}",
+                            zone=zone["zone_id"],
+                            theme=zone["theme"],
+                            map_x=new_x,
+                            map_y=new_y,
+                        )
+                        if zone.get("shop"):
+                            entry.shop_name = zone["shop"]
+                        entry.transporter_name = f"{zone['zone_id'].title()} Transporter"
+                        entry.save()
+                        self._connect_rooms(start_room, entry, d, opp[d])
+                        occupied_coords.add((new_x, new_y))
+                        break
+                if entry:
                     break
 
             if not entry:
@@ -1739,6 +1804,7 @@ class Command(BaseCommand):
             safe_dirs = ["north", "south", "east", "west"]
             random.shuffle(safe_dirs)
             safe_room = None
+            safe_dir_used = None
             for d in safe_dirs:
                 dx, dy = dir_coords[d]
                 new_x, new_y = entry.map_x + dx, entry.map_y + dy
@@ -1753,9 +1819,13 @@ class Command(BaseCommand):
                         safe_zone=True,
                     )
                     safe_room.save()
+                    safe_dir_used = d
+                    occupied_coords.add((new_x, new_y))
                     break
             
             if safe_room:
+                # Connect safe room back to entry so it is reachable from hub
+                self._connect_rooms(entry, safe_room, safe_dir_used, opp[safe_dir_used])
                 zone_rooms.append(safe_room)
                 prev = safe_room
 
@@ -1803,6 +1873,10 @@ class Command(BaseCommand):
                                     self._connect_rooms(r1, r2, d, opp[d])
                                 break
             all_rooms.extend(zone_rooms)
+
+        # Guarantee every room is reachable from the hub
+        hub.refresh_from_db()
+        self._ensure_all_connected(hub, dir_coords, opp)
 
         # Populate shop inventories with weapons and items
         hub = Room.objects.get(id=1)

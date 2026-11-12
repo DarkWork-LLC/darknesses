@@ -78,14 +78,25 @@ def roll_trait(rng_tuple):
 
 
 # Cyberpunk-themed bot names (diverse handles for a living grid)
+# Note: Names with a space-like break are two-word camel case (e.g. "NeonShade")
+# Some names are single words (e.g. "Blitz", "Riot") for variety
 BOT_NAMES = [
+    # Single-word names (for variety, ~30%)
+    "Neon", "Chrome", "Riot", "Nitro", "Zen", "Vibe", "Ghost",
+    "Blur", "Echo", "Rake", "Void", "Shatter", "Flash", "Twitch",
+    "Nimbus", "Wraith", "Jinx", "Bolt", "Pulse", "Drift", "Shade",
+    "Fury", "Karm", "Gear", "Trick", "Quake", "Volt", "Spark",
+    "Doom", "Raid", "Hack", "Node", "Byte", "Bit", "Core", "Data",
+    "Pure", "Smart", "Strong", "Fast", "Cyber", "Nano", "Synth",
+    "Cyberbyte", "Netlord", "Grid", "Key", "Lock", "Tap", "Stun",
+
+    # Two-word camel case names
     "NeonShade", "ChromeWraith", "GlitchMonk", "ZeroCool", "RogueAI",
     "Circuitbreaker", "Synthrunner", "Dataphantom", "Voltstriker", "PixelSlayer",
     "NeuralJack", "CyberWitch", "BinaryStorm", "Quantumshade", "Echoprotocol",
     "Voidwalker", "Lasermonk", "Novablade", "Cipherpunk", "JadeSpirit",
     "KiraCode", "LynxSystem", "MakoShift", "NexusFlame", "OnyxData",
     "PrismHack", "RiftWalker", "SparkAgent", "TalonNet", "ViperCode",
-    "Blitz", "CrackShell", "DuskLoader", "EmberSync", "FrostByte",
     "GrimAccess", "BurnShift", "DataDervish", "EchoJack", "FluxBishop",
     "Ghostwire", "HashQueen", "IceBreaker", "JunkRat", "KernelPanic",
     "LagSwitch", "MemeLord", "NullPtr", "Overclock", "PacketSniffer",
@@ -125,7 +136,7 @@ RACE_CLASS_COMBOS = [
     ("Void-Walker", "Psycher"), ("Void-Walker", "Warlock"), ("Void-Walker", "Thief"),
     ("Synth-Soul", "Netrunner"), ("Synth-Soul", "Warlock"), ("Synth-Soul", "Techie"),
     ("Orc", "Street Samurai"), ("Orc", "Heavy"),
-    ("Dark Elf", "Thief"), ("Dark Elf", "Assassin"),
+    ("Dark Elf", "Thief"), ("Dark Elf", "Ninja"),
 ]
 
 

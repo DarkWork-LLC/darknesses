@@ -1548,6 +1548,29 @@ def award_player_kill(player, target):
     player.money += stolen
     player.save(update_fields=["exp", "money", "karma"])
 
+    # Chance to lose a random item on death (10% chance)
+    item_loss_message = ""
+    if random.random() < 0.10:  # 10% chance
+        inventory_items = InventoryItem.objects.filter(player=target).exclude(equipped=True)
+        if inventory_items.exists():
+            # Get a random non-equipped item
+            random_item = random.choice(inventory_items)
+            # Remove the item from inventory
+            random_item.delete()
+            item_loss_message = f"\n[ITEM LOSS] You lost {random_item.item.name}!"
+        else:
+            # Try equipped items with lower chance
+            equipped_items = InventoryItem.objects.filter(player=target, equipped=True)
+            if equipped_items.exists():
+                random_item = random.choice(equipped_items)
+                random_item.equipped = False
+                random_item.save()
+                # Drop the item in the room instead of deleting
+                room = target.location
+                if room:
+                    room.items.add(random_item.item)
+                item_loss_message = f"\n[ITEM LOSS] You lost {random_item.item.name}!"
+
     hub = Room.objects.filter(id=HUB_ROOM_ID).first()
     target.hp = target.hp_max // 2
     target.money = max(0, target.money - stolen)
@@ -1559,6 +1582,8 @@ def award_player_kill(player, target):
     target.notification = (
         f"\nYou were neutralized by {player.user.username}! Lost {stolen} credits."
     )
+    if item_loss_message:
+        target.notification += item_loss_message
     target.save(
         update_fields=[
             "hp",
@@ -1572,6 +1597,7 @@ def award_player_kill(player, target):
     )
     output = f"\nYou neutralized {target.user.username}! +{exp_gain} exp, +{stolen} credits."
     output += check_level_up(player)
+    output += item_loss_message
     return output
 
 

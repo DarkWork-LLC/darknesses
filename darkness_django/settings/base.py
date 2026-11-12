@@ -61,7 +61,11 @@ WSGI_APPLICATION = 'darkness_django.wsgi.application'
 
 # Session Configuration: Logout after 20 minutes of inactivity
 SESSION_COOKIE_AGE = 1200  # 20 minutes in seconds
-SESSION_SAVE_EVERY_REQUEST = True
+# Don't save the session on every request. Polling endpoints (e.g. /poll/)
+# are hit frequently and don't modify session data, so saving every time
+# only invites race conditions where a concurrent logout/inactivity-kick
+# deletes the session row before this request can save it.
+SESSION_SAVE_EVERY_REQUEST = False
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 
 # Database

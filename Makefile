@@ -70,7 +70,7 @@ init: migrate ## Initialize game world data (local) - WARNING: Wipes world state
 fresh: ## Wipe ALL user accounts and spawn a few fresh AI bots (world/rooms are kept)
 	@echo "Deleting all user accounts and creating fresh bots..."
 	$(MANAGE) migrate --settings=$(SETTINGS)
-	$(MANAGE) create_bots --wipe-users --count 8 --settings=$(SETTINGS)
+	$(MANAGE) create_bots --wipe-users --count 25 --settings=$(SETTINGS)
 
 deploy-migrate: ## Run database migrations (PythonAnywhere/production)
 	$(PYTHONANYWHERE_MANAGE) makemigrations game --settings=$(PYTHONANYWHERE_SETTINGS)

@@ -1994,10 +1994,10 @@ class Command(BaseCommand):
                         npc_type=npc_type,
                     )
                     # Give NPCs drops more often so bots and players can collect items
-                    if random.random() > 0.4:
+                    if random.random() > 0.76:
                         npc.drops.add(random.choice(items))
                     # Give NPCs a weapon sometimes
-                    if random.random() > 0.6:
+                    if random.random() > 0.84:
                         weapon = random.choice([i for i in items if i.item_type == "weapon"])
                         npc.weapon = weapon
                         npc.save()

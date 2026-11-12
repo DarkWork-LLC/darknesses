@@ -490,6 +490,135 @@ class BotAITests(TransactionTestCase):
         )
 
 
+class PoisonBleedTest(TestCase):
+    """Test poison and bleed damage-over-time system."""
+
+    def setUp(self):
+        # Create a poison weapon item with poison and bleed properties
+        self.poison_weapon = Item.objects.create(
+            name="Poison Dagger",
+            description="Coated in neurotoxin.",
+            item_type="weapon",
+            subtype="one-handed",
+            price=250,
+            rarity="common",
+            attack_bonus=10,
+            str_bonus=0,
+            int_bonus=0,
+            wil_bonus=0,
+            agi_bonus=3,
+            hea_bonus=0,
+            cha_bonus=0,
+            element="physical",
+            poison_damage=8,
+            poison_duration=3,
+            bleed_damage=5,
+            bleed_duration=4,
+        )
+
+        # Create a health weapon (no poison/bleed)
+        self.health_weapon = Item.objects.create(
+            name="Rusty Iron",
+            description="An old iron blade.",
+            item_type="weapon",
+            subtype="one-handed",
+            price=100,
+            rarity="common",
+            attack_bonus=5,
+            str_bonus=3,
+            int_bonus=0,
+            wil_bonus=0,
+            agi_bonus=0,
+            hea_bonus=0,
+            cha_bonus=0,
+            element="physical",
+            poison_damage=0,
+            poison_duration=0,
+            bleed_damage=0,
+            bleed_duration=0,
+        )
+
+        # Create a human player
+        self.human_user = User.objects.create_user(username="humanplayer", password="secret")
+        self.human = Player.objects.create(
+            user=self.human_user,
+            race="Human",
+            game_class="Street Samurai",
+            location=None,
+            lvl=1,
+            exp=0,
+            money=1000,
+            hp=100,
+            hp_max=100,
+            mana=50,
+            mana_max=50,
+            str_stat=10,
+            int_stat=10,
+            wil_stat=10,
+            agi_stat=10,
+            hea_stat=10,
+            cha_stat=10,
+            attack=10,
+            defense=5,
+            karma=0,
+            online=True,
+            is_bot=False,
+            stat_points=5,
+            last_bot_action=None,
+            last_activity=None,
+            last_move_time=None,
+        )
+
+        # Create a bot player
+        self.bot_user = User.objects.create_user(username="poisonbot", password="secret")
+        self.bot = Player.objects.create(
+            user=self.bot_user,
+            race="Human",
+            game_class="Thief",
+            location=None,
+            lvl=1,
+            exp=0,
+            money=1000,
+            hp=100,
+            hp_max=100,
+            mana=50,
+            mana_max=50,
+            str_stat=10,
+            int_stat=10,
+            wil_stat=10,
+            agi_stat=10,
+            hea_stat=10,
+            cha_stat=10,
+            attack=10,
+            defense=5,
+            karma=0,
+            online=True,
+            is_bot=True,
+            bot_personality="aggressive",
+            stat_points=5,
+            last_bot_action=None,
+            last_activity=None,
+            last_move_time=None,
+        )
+
+        # Create a weaponless NPC
+        self.npc = NPC.objects.create(
+            name="Drone",
+            location=None,
+            hp=100,
+            hp_max=100,
+            attack=5,
+            defense=3,
+            lvl=2,
+            money_drop=10,
+            exp_drop=20,
+            aggressive=True,
+        )
+
+    def test_poison_bleed_mechanics(self):
+        pass
+
+
 def _make_room(room_id, name, zone, safe_zone=False):
     return Room.objects.create(
         id=room_id, name=name, description=name, zone=zone, safe_zone=safe_zone

@@ -20,7 +20,7 @@ A professional multi-user, terminal-style cyberpunk RPG (MUD) built with Django.
 - **Drug & Addiction System**: Temporary stat boosts with risk of dependency and withdrawal damage.
 - **Unique Loot**: Sector bosses drop legendary gear not found in shops.
 - **Leaderboards**: Use the `TOP` command to see the grid's most elite adventurers.
-- **AI Bot System**: Autonomous AI-controlled players with cyberpunk names that wander, fight, and interact with players.
+- **AI Bot System**: Autonomous AI-controlled players with cyberpunk names and 10 distinct personalities (Aggressive, Berserker, Coward, Chaotic, Explorer, Hermit, Mercenary, Social, Trader, Vigilante) that wander, fight, trade, and interact with players.
 
 ## Quick Start
 
@@ -42,11 +42,24 @@ For detailed MUD client setup instructions, see the [USER_GUIDE.md](USER_GUIDE.m
 
 ### AI Bots
 The grid is populated with AI-controlled players that:
-- Have cyberpunk-themed names (e.g., Neon_Shade, Chrome_Wraith, Glitch_Monk)
-- Automatically wander the grid and fight NPCs
-- May attack players based on their karma alignment
-- Can invite players to parties
+- Have cyberpunk-themed names (e.g., NeonShade, ChromeWraith, GlitchMonk)
+- Spawn with one of 10 distinct personalities that shape combat, social, and movement behavior:
+  - **Aggressive**: Hunts players with high aggression
+  - **Berserker**: Fights to the death, never retreats, glass cannon
+  - **Coward**: Flees from danger, fights only NPCs, rests early
+  - **Chaotic**: Unpredictable - could help or backstab you
+  - **Explorer**: Roams distant zones, avoids crowds, loves transporters
+  - **Hermit**: Avoids players entirely, hunts NPCs in isolated sectors
+  - **Mercenary**: Fights for coin, neutral alignment, works with anyone
+  - **Social**: Loves parties, greets everyone, chats frequently
+  - **Trader**: Hoards money, frequents shops, avoids pointless combat
+  - **Vigilante**: Hunts evil-aligned players, defends the weak
+- Automatically wander the grid, fight NPCs, and level up
+- May attack players based on personality and karma alignment
+- Can invite players to parties (social personalities most likely)
 - Appear in the `WHO` list and `TOP` rankings with a `(bot)` marker
+- Are created via `python manage.py create_bots` (default 25 bots, configurable with `--count` and `--personality`).
+- Buy gear from shops, pick up loot, and auto-train their stats.
 
 ## Documentation
 For a full manual of commands, combat formulas, and world lore, see the [USER_GUIDE.md](USER_GUIDE.md).

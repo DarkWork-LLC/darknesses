@@ -999,11 +999,11 @@ def respawn_npcs(room):
         npc_ids.append(n.pk)
         respawned_count += 1
         # Give respawned NPCs a chance to have drops and weapons
-        if not n.drops.exists() and random.random() < 0.5:
+        if not n.drops.exists() and random.random() < 0.2:
             drop_item = Item.objects.order_by("?").first()
             if drop_item:
                 n.drops.add(drop_item)
-        if not n.weapon and random.random() < 0.3:
+        if not n.weapon and random.random() < 0.12:
             weapon = Item.objects.filter(item_type="weapon").order_by("?").first()
             if weapon:
                 n.weapon = weapon
@@ -1075,11 +1075,11 @@ def respawn_npcs(room):
             npc_type=npc_type,
         )
         # Give new NPCs drops and weapons so bots can collect items
-        if random.random() < 0.5:
+        if random.random() < 0.2:
             drop_item = Item.objects.order_by("?").first()
             if drop_item:
                 new_npc.drops.add(drop_item)
-        if random.random() < 0.3:
+        if random.random() < 0.12:
             weapon = Item.objects.filter(item_type="weapon").order_by("?").first()
             if weapon:
                 new_npc.weapon = weapon
@@ -1934,6 +1934,20 @@ def combat_round(player):
                     ii, created = InventoryItem.objects.get_or_create(player=player, item=item)
                     if not created:
                         ii.quantity += 1
+                # Apply poison/bleed to the target when they are defeated
+                # if the killer (bot) has a poison weapon
+                if isinstance(target, NPC) and hasattr(target, "weapon") and target.weapon:
+                    weapon = target.weapon
+                    if weapon.poison_damage > 0:
+                        target.poison_duration = target_weapon_poison_ticks(weapon)
+                        target.poison_damage = weapon.poison_damage
+                        target.save(update_fields=["poison_duration", "poison_damage"])
+                        output += f"\n[NPC {target.name} is now poisoned! (-{weapon.poison_damage} HP/turn)"
+                    if weapon.bleed_duration > 0:
+                        target.bleed_duration = target_weapon_bleed_ticks(weapon)
+                        target.bleed_damage = weapon.bleed_damage
+                        target.save(update_fields=["bleed_duration", "bleed_damage"])
+                        output += f"\n[NPC {target.name} is now bleeding! (-{weapon.bleed_duration} HP/turn)"
                     ii.save()
                     output += f"\nRetrieved: {item.name}"
                 output += check_level_up(player)
@@ -3945,6 +3959,127 @@ def bot_auto_equip(bot, item):
     return True
 
 
+def bot_upgrade_gear(bot):
+    """Scan the bot's inventory for better unequipped weapons/armor and equip them.
+    Bots actively upgrade their gear so they grow stronger over time like human players.
+    Returns True if any upgrade was made."""
+    from game.models import InventoryItem
+
+    upgraded = False
+
+    limits = GEAR_LIMITS.get(bot.game_class, {})
+    allowed_weapons = limits.get("weapon", [])
+    allowed_armor = limits.get("armor", [])
+
+    # ── Weapon upgrades ──
+    current_weapon = (
+        InventoryItem.objects.filter(
+            player=bot, equipped=True, item__item_type="weapon"
+        )
+        .select_related("item")
+        .first()
+    )
+    better_weapons = (
+        InventoryItem.objects.filter(
+            player=bot, equipped=False, item__item_type="weapon"
+        )
+        .select_related("item")
+        .order_by("-item__attack_bonus")
+    )
+
+    for ii in better_weapons:
+        if allowed_weapons and ii.item.subtype not in allowed_weapons:
+            continue
+        if not current_weapon or ii.item.attack_bonus > current_weapon.item.attack_bonus:
+            if current_weapon:
+                old = current_weapon.item
+                bot.attack -= old.attack_bonus
+                bot.defense -= old.defense_bonus
+                bot.str_stat -= old.str_bonus
+                bot.int_stat -= old.int_bonus
+                bot.wil_stat -= old.wil_bonus
+                bot.agi_stat -= old.agi_bonus
+                bot.hea_stat -= old.hea_bonus
+                bot.cha_stat -= old.cha_bonus
+                current_weapon.equipped = False
+                current_weapon.save(update_fields=["equipped"])
+
+            ii.equipped = True
+            ii.save(update_fields=["equipped"])
+            bot.attack += ii.item.attack_bonus
+            bot.defense += ii.item.defense_bonus
+            bot.str_stat += ii.item.str_bonus
+            bot.int_stat += ii.item.int_bonus
+            bot.wil_stat += ii.item.wil_bonus
+            bot.agi_stat += ii.item.agi_bonus
+            bot.hea_stat += ii.item.hea_bonus
+            bot.cha_stat += ii.item.cha_bonus
+            current_weapon = ii
+            upgraded = True
+
+    # ── Armor upgrades ──
+    current_armor = (
+        InventoryItem.objects.filter(
+            player=bot, equipped=True, item__item_type="armor"
+        )
+        .select_related("item")
+        .first()
+    )
+    better_armor = (
+        InventoryItem.objects.filter(
+            player=bot, equipped=False, item__item_type="armor"
+        )
+        .select_related("item")
+        .order_by("-item__defense_bonus")
+    )
+
+    for ii in better_armor:
+        if allowed_armor and ii.item.subtype not in allowed_armor:
+            continue
+        if not current_armor or ii.item.defense_bonus > current_armor.item.defense_bonus:
+            if current_armor:
+                old = current_armor.item
+                bot.defense -= old.defense_bonus
+                bot.attack -= old.attack_bonus
+                bot.str_stat -= old.str_bonus
+                bot.int_stat -= old.int_bonus
+                bot.wil_stat -= old.wil_bonus
+                bot.agi_stat -= old.agi_bonus
+                bot.hea_stat -= old.hea_bonus
+                bot.cha_stat -= old.cha_bonus
+                current_armor.equipped = False
+                current_armor.save(update_fields=["equipped"])
+
+            ii.equipped = True
+            ii.save(update_fields=["equipped"])
+            bot.defense += ii.item.defense_bonus
+            bot.attack += ii.item.attack_bonus
+            bot.str_stat += ii.item.str_bonus
+            bot.int_stat += ii.item.int_bonus
+            bot.wil_stat += ii.item.wil_bonus
+            bot.agi_stat += ii.item.agi_bonus
+            bot.hea_stat += ii.item.hea_bonus
+            bot.cha_stat += ii.item.cha_bonus
+            current_armor = ii
+            upgraded = True
+
+    if upgraded:
+        bot.save(
+            update_fields=[
+                "attack",
+                "defense",
+                "str_stat",
+                "int_stat",
+                "wil_stat",
+                "agi_stat",
+                "hea_stat",
+                "cha_stat",
+            ]
+        )
+
+    return upgraded
+
+
 def bot_try_use_ability(bot, target_name):
     """Have a bot cast one of its learned class moves at its target so bots
     actually level up like players. Returns True if an ability was attempted."""
@@ -4022,8 +4157,17 @@ def process_bot_ai(bot):
     if not room:
         return ""
 
-    # Check if bot should rest (low HP) - but NOT if in combat
-    if bot.hp < bot.hp_max * 0.3 and not bot.last_combat_npc and not bot.last_combat_player:
+    # Check if bot should rest (low HP) - but NOT if in combat.
+    # Personality affects self-preservation: berserkers fight to the death,
+    # cowards rest early, berserkers have lower HP thresholds.
+    rest_threshold = 0.30
+    if bot.bot_personality == "berserker":
+        rest_threshold = 0.15  # fight until nearly dead
+    elif bot.bot_personality == "coward":
+        rest_threshold = 0.50  # panic and rest early
+    elif bot.bot_personality in ("trader", "explorer"):
+        rest_threshold = 0.35  # slightly cautious
+    if bot.hp < bot.hp_max * rest_threshold and not bot.last_combat_npc and not bot.last_combat_player:
         rest_command(bot)
         return ""  # Bot is now resting or already resting
 
@@ -4036,12 +4180,24 @@ def process_bot_ai(bot):
     target_player = None
 
     if not room.safe_zone:
-        # Attack players within 4 levels based on bot aggression trait
+        # Attack players within 4 levels based on bot aggression trait and personality
         if not target_npc and not target_player:
             for p in players_here:
                 if abs(bot.lvl - p.lvl) <= 4:
-                    # Aggressive bots attack anyone; others attack based on karma
-                    if bot.bot_aggression > 60 or p.karma < -20:
+                    # Personality-driven player aggression
+                    will_attack_player = False
+                    if bot.bot_personality == "berserker":
+                        will_attack_player = True  # berserkers attack anyone
+                    elif bot.bot_personality == "aggressive":
+                        will_attack_player = bot.bot_aggression > 40
+                    elif bot.bot_personality == "vigilante":
+                        will_attack_player = p.karma < -20  # hunt the evil
+                    elif bot.bot_personality == "chaotic":
+                        will_attack_player = random.random() < 0.5
+                    elif bot.bot_personality == "mercenary":
+                        will_attack_player = bot.bot_aggression > 50
+                    # coward, hermit, social, trader never initiate PvP
+                    if will_attack_player:
                         target_player = p
                         break
 
@@ -4082,13 +4238,22 @@ def process_bot_ai(bot):
                 continue
             break
 
-    # Bot should move away if too close to shop (3-4 rooms) or starting room (3-4 rooms)
-    if (target_npc or target_player) and (shop_dist <= 4 or start_dist <= 4 and start_dist != 999):
-        # Too close to a shop or starting room: move away instead of fighting.
-        if room.exits:
-            direction = random.choice(list(room.exits.keys()))
-            move_player(bot, direction)
-        return ""
+    # Bot should move away if too close to shop (3-4 rooms) or starting room (3-4 rooms).
+    # Berserkers ignore this and fight anywhere; cowards flee from players.
+    if target_npc or target_player:
+        if bot.bot_personality != "berserker" and (shop_dist <= 4 or start_dist <= 4 and start_dist != 999):
+            # Too close to a shop or starting room: move away instead of fighting.
+            if room.exits:
+                direction = random.choice(list(room.exits.keys()))
+                move_player(bot, direction)
+            return ""
+        # Cowards flee from player targets rather than fighting them.
+        if target_player and bot.bot_personality == "coward":
+            if room.exits:
+                direction = random.choice(list(room.exits.keys()))
+                move_player(bot, direction)
+            return ""
+
     if target_npc or target_player:
         target_name = target_npc.name if target_npc else target_player.user.username
         # Mix class abilities into the fight (~60% of engagements) so bots
@@ -4098,16 +4263,93 @@ def process_bot_ai(bot):
         attack_target(bot, target_name, auto=True)
         return ""
 
-    # Party behavior: invite players if social enough
-    if bot.bot_social > 60 and not bot.parties.exists() and players_here.exists():
+    # Party behavior: invite players if social enough. Personality modifies
+    # the threshold and frequency.
+    social_threshold = 60
+    if bot.bot_personality == "social":
+        social_threshold = 30  # socialites invite almost anyone
+    elif bot.bot_personality in ("coward", "hermit", "berserker", "aggressive"):
+        social_threshold = 85  # loners and fighters rarely group
+    if bot.bot_social > social_threshold and not bot.parties.exists() and players_here.exists():
         for p in players_here:
             if abs(bot.lvl - p.lvl) <= 4 and not p.parties.exists():
                 invite_to_party(bot, p.user.username)
                 break
 
-    # Random chat/say to players in room
-    if players_here.exists() and random.random() < 0.15:  # 15% chance to say something
-        if bot.karma < -30:
+    # Random chat/say to players in room. Personality shapes tone and frequency.
+    chat_chance = 0.15
+    if bot.bot_personality == "social":
+        chat_chance = 0.35  # socialites talk a lot
+    elif bot.bot_personality in ("hermit", "coward"):
+        chat_chance = 0.05  # loners stay quiet
+    elif bot.bot_personality == "berserker":
+        chat_chance = 0.08  # berserkers grunt, rarely chat
+    if players_here.exists() and random.random() < chat_chance:
+        # Personality-specific chat pools
+        if bot.bot_personality == "berserker":
+            berserker_lines = [
+                "Blood for the grid!",
+                "I'll crush you.",
+                "Die screaming.",
+                "More targets.",
+                "Fight me.",
+            ]
+            message = random.choice(berserker_lines)
+        elif bot.bot_personality == "coward":
+            coward_lines = [
+                "Please don't hurt me.",
+                "I'm just passing through.",
+                "Nobody look at me.",
+                "Is it safe yet?",
+                "I surrender!",
+            ]
+            message = random.choice(coward_lines)
+        elif bot.bot_personality == "trader":
+            trader_lines = [
+                "Got any gear to sell?",
+                "Best prices in the sector.",
+                "Buying weapons and armor.",
+                "Trade? I pay well.",
+                "Looking for buyers.",
+            ]
+            message = random.choice(trader_lines)
+        elif bot.bot_personality == "social":
+            social_lines = [
+                "Join my party, we'll wreck shop!",
+                "Hey there, choom! Looking for a team?",
+                "Let's hunt some drones together.",
+                "More heads, better loot!",
+                "Party up and stay frosty.",
+            ]
+            message = random.choice(social_lines)
+        elif bot.bot_personality == "vigilante":
+            vigilante_lines = [
+                "Evil ends here, choom.",
+                "I'll protect the weak.",
+                "Justice for the grid.",
+                "Your crimes end now.",
+                "Stand down, villain.",
+            ]
+            message = random.choice(vigilante_lines)
+        elif bot.bot_personality == "hermit":
+            hermit_lines = [
+                "Leave me alone.",
+                "This sector is mine.",
+                "Go away.",
+                "I hunt alone.",
+                "Solitary and armed.",
+            ]
+            message = random.choice(hermit_lines)
+        elif bot.bot_personality == "chaotic":
+            chaotic_lines = [
+                "Flip a coin?",
+                "Trust me... or don't.",
+                "Chaos is a ladder.",
+                "Heads I help, tails I hurt.",
+                "Surprise!",
+            ]
+            message = random.choice(chaotic_lines)
+        elif bot.karma < -30:
             taunts = [
                 "You're gonna die in the gutter, choom.",
                 "Pathetic. I'll scrap you for parts.",
@@ -4150,33 +4392,76 @@ def process_bot_ai(bot):
                 ii.quantity += 1
             ii.save()
             bot_auto_equip(bot, item)
+            # Also scan inventory for any better unequipped gear to equip
+            bot_upgrade_gear(bot)
 
-    # Bot shopping: buy items from shop that match class needs
-    # 30% chance to browse shop if in a shop room
-    if bot.location.shop_name and random.random() < 0.3:
+    # Bot shopping: buy items from shop that match class needs.
+    # Traders shop far more often; hermits/cowards avoid shops.
+    # Bots buy upgrades when they can afford them and the shop item beats equipped gear.
+    shop_chance = 0.30
+    if bot.bot_personality == "trader":
+        shop_chance = 0.75
+    elif bot.bot_personality == "social":
+        shop_chance = 0.45
+    elif bot.bot_personality in ("hermit", "coward", "berserker"):
+        shop_chance = 0.10
+    if bot.location.shop_name and random.random() < shop_chance:
         # Get class-appropriate weapons and armor from GEAR_LIMITS
         from game.services import GEAR_LIMITS
         limits = GEAR_LIMITS.get(bot.game_class, {})
-        
-        # Try to buy a weapon if bot doesn't have one or wants upgrade
-        if not limits.get("weapon") or random.random() < 0.5:
-            # List available weapons and try to buy one
-            shop_items = bot.location.shop_inventory.all()
-            weapons = [i for i in shop_items if i.item_type == "weapon"]
-            if weapons:
-                # Buy a random weapon that's compatible or best available
-                valid_weapons = [w for w in weapons if not limits.get("weapon") or w.subtype in limits["weapon"]]
-                if valid_weapons:
-                    weapon = random.choice(valid_weapons)
-                    if bot.money >= weapon.price:
-                        buy_item(bot, weapon.name)
-        
-        # Try to buy armor if bot doesn't have any
-        current_armor = InventoryItem.objects.filter(player=bot, equipped=True, item__item_type="armor").first()
-        if not current_armor:
-            armor = [i for i in shop_items if i.item_type == "armor"]
-            if armor and bot.money >= armor[0].price:
-                buy_item(bot, armor[0].name)
+
+        shop_items = bot.location.shop_inventory.all()
+
+        # Try to buy a better weapon if the shop has one that beats equipped gear
+        current_weapon = (
+            InventoryItem.objects.filter(
+                player=bot, equipped=True, item__item_type="weapon"
+            )
+            .select_related("item")
+            .first()
+        )
+        current_weapon_bonus = current_weapon.item.attack_bonus if current_weapon else 0
+        allowed_weapon_subtypes = limits.get("weapon", [])
+        shop_weapons = [
+            i for i in shop_items
+            if i.item_type == "weapon"
+            and i.attack_bonus > current_weapon_bonus
+            and (not allowed_weapon_subtypes or i.subtype in allowed_weapon_subtypes)
+        ]
+        if shop_weapons:
+            # Buy the best affordable weapon
+            shop_weapons.sort(key=lambda w: w.attack_bonus, reverse=True)
+            for weapon in shop_weapons:
+                if bot.money >= weapon.price:
+                    buy_item(bot, weapon.name)
+                    break
+
+        # Try to buy better armor if the shop has one that beats equipped gear
+        current_armor = (
+            InventoryItem.objects.filter(
+                player=bot, equipped=True, item__item_type="armor"
+            )
+            .select_related("item")
+            .first()
+        )
+        current_armor_bonus = current_armor.item.defense_bonus if current_armor else 0
+        allowed_armor_subtypes = limits.get("armor", [])
+        shop_armor = [
+            i for i in shop_items
+            if i.item_type == "armor"
+            and i.defense_bonus > current_armor_bonus
+            and (not allowed_armor_subtypes or i.subtype in allowed_armor_subtypes)
+        ]
+        if shop_armor:
+            # Buy the best affordable armor
+            shop_armor.sort(key=lambda w: w.defense_bonus, reverse=True)
+            for armor in shop_armor:
+                if bot.money >= armor.price:
+                    buy_item(bot, armor.name)
+                    break
+
+        # Equip anything just purchased
+        bot_upgrade_gear(bot)
     
     # Bot selling: sell unequipped items to shop
     if not bot.location.shop_name:
@@ -4220,11 +4505,32 @@ def process_bot_ai(bot):
     if room.zone not in zones:
         transporters = list(Room.objects.filter(transporter_name__isnull=False, zone__in=zones))
         if transporters:
-            teleport_player_to_room(bot, random.choice(transporters), "Transporter hop to a leveling zone.")
-            return ""
+            # Hermits avoid transporters (prefer to stay put); explorers love them.
+            if bot.bot_personality == "hermit" and random.random() < 0.7:
+                pass  # hermit refuses to use transporter this tick
+            elif bot.bot_personality == "explorer" or random.random() < 0.5:
+                teleport_player_to_room(bot, random.choice(transporters), "Transporter hop to a leveling zone.")
+                return ""
     npcs_nearby = npcs.exists()
     if room.exits:
+        # Personality-based movement: explorers roam constantly, hermits avoid
+        # crowds, berserkers linger to fight, cowards skitter away from danger.
         move_chance = 0.35 if npcs_nearby else 0.85
+        if bot.bot_personality == "explorer":
+            move_chance = 0.75 if npcs_nearby else 0.95  # always roaming
+        elif bot.bot_personality == "berserker":
+            move_chance = 0.20 if npcs_nearby else 0.60  # stick around to fight
+        elif bot.bot_personality == "coward":
+            move_chance = 0.60 if npcs_nearby else 0.90  # skittish
+        elif bot.bot_personality == "hermit":
+            # Hermits flee rooms that have players (they hunt alone)
+            if players_here.exists():
+                move_chance = 0.95
+        elif bot.bot_personality == "social":
+            # Socialites linger where players are
+            if players_here.exists():
+                move_chance = 0.15  # stay and chat
+
         if random.random() < move_chance:
             direction = random.choice(list(room.exits.keys()))
             move_player(bot, direction)
@@ -4236,6 +4542,16 @@ def process_bot_ai(bot):
             teleport_player_to_room(
                 bot, rescue_room, "Pathfinder rerouted this stranded runner."
             )
+
+    # Safety net: if bot hasn't leveled up yet, check for level up
+    # (normally done during combat rounds, but check here as a safety net)
+    if bot.exp >= bot.lvl * 120:
+        check_level_up(bot)
+
+    # Process poison/bleed damage on the bot itself
+    poison_bleed_output = process_poison_bleed_effects(bot)
+    if poison_bleed_output:
+        return poison_bleed_output
 
     return ""
 
@@ -4680,3 +4996,84 @@ def drop_npc_weapon(npc):
         npc.save(update_fields=["weapon"])
         return f"\n{npc.name} drops {item_name}!"
     return ""
+
+
+def process_poison_bleed_effects(player):
+    """Process poison and bleed damage-over-time effects on a player/bot.
+    Poison and bleed damage ticks at the end of each turn. Stops automatically
+    when duration expires and notifies the room when a human takes damage.
+
+    Poison causes rot damage per tick; bleed causes blood loss per tick.
+    Both are separate effects that can stack. Human players get notifications
+    so they can see damage happening; bots get silent notification messages.
+    """
+    output = ""
+    if not player or player.poison_duration <= 0 and player.bleed_duration <= 0:
+        return output
+
+    # Deduct poison damage
+    if player.poison_duration > 0:
+        player.hp = max(0, player.hp - player.poison_damage)
+        player.save(update_fields=["hp", "poison_duration"])
+        player.poison_duration -= 1
+
+        # Notify room when human takes poison damage (bots don't grab notifications)
+        if player.is_bot:
+            if player.poison_duration == 0 and player.poison_damage > 0:
+                # About to exhaust, notify room
+                output += f"\n[BOT] {player.user.username} is poisoned! -{player.poison_damage} HP/turn remaining {player.poison_duration + 1} ticks"
+        else:
+            # Human player - always notify
+            if not player.notification:
+                player.notification = ""
+            player.notification += f"\n[POISON] You are poisoned! -{player.poison_damage} HP per turn"
+            if player.poison_duration == 0:
+                player.notification += f" (exhausting in {player.bleed_duration + 1} turns)"
+
+        # Check for death from poison
+        if player.hp <= 0:
+            player.hp = 0
+            # Poison death is just a heal-rest, not a forced respawn
+            if player.poison_duration == 0:
+                if player.is_bot:
+                    output += f"\n[BOT] {player.user.username} collapses from poison damage!"
+                else:
+                    output += f"\n[POISON] You collapse from poison! Healing starts now."
+                output += check_level_up(player)
+            return output
+
+    # Deduct bleed damage (bleed continues after poison exhausts)
+    if player.bleed_duration > 0:
+        player.hp = max(0, player.hp - player.bleed_damage)
+        player.save(update_fields=["hp", "bleed_duration"])
+        player.bleed_duration -= 1
+
+        # Notify room when human takes bleed damage
+        if not player.is_bot:
+            if not player.notification:
+                player.notification = ""
+            player.notification += f"\n[BLEED] You are bleeding! -{player.bleed_damage} HP per turn"
+            if player.bleed_duration == 0:
+                player.notification += f" (exhausting now)"
+        else:
+            if player.bleed_duration == 0 and player.bleed_damage > 0:
+                output += f"\n[BOT] {player.user.username} is bleeding! -{player.bleed_damage} HP/turn remaining {player.bleed_duration + 1} ticks"
+
+        if player.hp <= 0:
+            player.hp = 0
+            # Bleed death triggers respawn at hub
+            if player.bleed_duration == 0:
+                if player.is_bot:
+                    output += f"\n[BOT] {player.user.username} collapses from blood loss!"
+                else:
+                    output += f"\n[BLEED] You collapse from blood loss! Respawning at the hub."
+                output += check_level_up(player)
+            return output
+
+    # Both effects exhausted, clear flags
+    if player.poison_duration == 0 and player.bleed_duration == 0:
+        player.poison_duration = 0
+        player.bleed_duration = 0
+        player.save(update_fields=["poison_duration", "bleed_duration"])
+
+    return output

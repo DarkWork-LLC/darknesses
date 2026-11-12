@@ -36,6 +36,11 @@ class Item(models.Model):
     warp_to_room = models.ForeignKey(
         "Room", on_delete=models.SET_NULL, null=True, blank=True, related_name="warp_items"
     )
+    # Poison/bleed venom fields for physical poison weapons
+    poison_damage = models.IntegerField(default=0)  # Damage per tick
+    poison_duration = models.IntegerField(default=0)  # Ticks lasting (3 rounds)
+    bleed_damage = models.IntegerField(default=0)  # Damage per tick
+    bleed_duration = models.IntegerField(default=0)  # Ticks lasting (3 rounds)
 
     class Meta:
         indexes = [
@@ -158,6 +163,12 @@ class Player(models.Model):
     bot_karma = models.IntegerField(default=0)  # Bot's alignment for behavior
     bot_aggression = models.IntegerField(default=50)  # 0-100, likelihood to attack players
     bot_social = models.IntegerField(default=50)  # 0-100, likelihood to party with players
+    # Bot personality archetype driving combat, social, and movement behavior.
+    bot_personality = models.CharField(
+        max_length=20,
+        default="wanderer",
+        help_text="Personality archetype: aggressive, mercenary, vigilante, social, trader, explorer, coward, berserker, hermit, chaotic",
+    )
     last_bot_action = models.DateTimeField(null=True, blank=True)  # Track last AI action
 
     # AFK tracking: last time the player/bot actually DID something

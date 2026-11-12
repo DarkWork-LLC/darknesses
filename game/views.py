@@ -4,7 +4,8 @@ from django.http import JsonResponse
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.models import User
 from django.views.decorators.csrf import csrf_exempt
-from django.db import OperationalError
+from django.contrib.sessions.exceptions import SessionInterrupted
+from django.db import OperationalError, IntegrityError
 from django.utils import timezone
 from .models import Player, Room
 from . import services
@@ -44,7 +45,11 @@ def register_view(request):
             if User.objects.filter(username=name).exists():
                 return JsonResponse({"message": "Handle already in use."}, status=400)
 
-            user = User.objects.create_user(username=name, password=password)
+            try:
+                user = User.objects.create_user(username=name, password=password)
+            except IntegrityError:
+                return JsonResponse({"message": "Username already taken."}, status=400)
+
             start_room = Room.objects.get_or_create(
                 id=1,
                 defaults={
@@ -409,7 +414,7 @@ def poll_view(request):
             return JsonResponse({"status": "kicked_inactivity", "authenticated": False})
 
         return JsonResponse(services.get_poll_data(player))
-    except (OperationalError, Exception):
+    except (OperationalError, SessionInterrupted, Exception):
         return JsonResponse({"status": "db_not_ready", "authenticated": False})
 
 

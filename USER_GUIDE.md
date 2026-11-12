@@ -34,7 +34,7 @@ Key Features:
 - **Drug & Addiction**: Temporary stat boosts with dependency risk and withdrawal damage.
 - **Leaderboards**: Competitive ranking of the top adventurers and a "Wall of Death".
 - **Party System**: Team up with up to 3 players to explore the grid together.
-- **AI Bot System**: Autonomous AI players that wander, fight, and interact.
+- **AI Bot System**: Autonomous AI players with cyberpunk names and 10 distinct personalities (Aggressive, Berserker, Coward, Chaotic, Explorer, Hermit, Mercenary, Social, Trader, Vigilante) that wander, fight, trade, and interact.
 
 ---
 
@@ -148,6 +148,8 @@ Abilities are learned at levels 1, 5, 10, 15, 20, 25, and 30.
 - `LIST` / `BUY` / `SELL`: Commerce.
 - `SELLALL`: Sell all unequipped hardware in your inventory.
 
+**Loot Drop Rates:** NPCs have a reduced chance to carry items or weapons upon defeat. Drop rates are approximately 60% lower than previous versions, making rare drops more meaningful and encouraging players to hunt higher-level targets for better loot.
+
 ---
 
 ## Combat System
@@ -185,6 +187,39 @@ Team up with other players to explore and move together.
 - `make clean`: Wipes world data but **keeps players**.
 - `make init`: Generates new world state.
 - `python manage.py process_bots`: Starts the AI daemon.
+
+## AI Bot System
+
+The grid is populated with autonomous AI-controlled players that behave like human adventurers. Each bot is assigned one of 10 personality archetypes that shape how it fights, socializes, moves, and interacts:
+
+| Personality | Behavior |
+|-------------|----------|
+| **Aggressive** | Hunts players with high aggression; rarely groups. |
+| **Berserker** | Fights to the death, never retreats; lower HP (glass cannon). |
+| **Coward** | Flees from danger, fights only NPCs, rests early when injured. |
+| **Chaotic** | Unpredictable; may help or backstab you on any given tick. |
+| **Explorer** | Roams distant zones, avoids crowds, loves using transporters. |
+| **Hermit** | Avoids players entirely, hunts NPCs in isolated sectors. |
+| **Mercenary** | Fights for coin; neutral alignment; will work with or against anyone. |
+| **Social** | Loves parties, greets everyone, chats frequently, invites to groups. |
+| **Trader** | Hoards money, frequents shops, avoids pointless combat. |
+| **Vigilante** | Hunts evil-aligned players (low karma), defends the weak. |
+
+Bots:
+- Wander the grid, fight NPCs, gain EXP, and level up independently of human players.
+- Buy gear from shops, pick up loot from the ground, and auto-train their stats.
+- Attack players based on their personality and karma alignment (e.g., Vigilantes hunt evildoers; Berserkers attack anyone).
+- Invite players to parties (Social personalities most likely).
+- Appear in the `WHO` list and `TOP` rankings with a `(bot)` marker.
+- Are created via `python manage.py create_bots` (default 25 bots, configurable with `--count` and `--personality`).
+
+To start the background AI daemon that drives bot behavior continuously:
+
+```
+python manage.py process_bots
+```
+
+Bots also advance on each web poll, so they remain active even when the daemon is not running.
 
 ---
 

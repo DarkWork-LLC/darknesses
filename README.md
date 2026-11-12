@@ -20,7 +20,7 @@ A professional multi-user, terminal-style cyberpunk RPG (MUD) built with Django.
 - **Drug & Addiction System**: Temporary stat boosts with risk of dependency and withdrawal damage.
 - **Unique Loot**: Sector bosses drop legendary gear not found in shops.
 - **Leaderboards**: Use the `TOP` command to see the grid's most elite adventurers.
-- **AI Bot System**: Autonomous AI-controlled players with cyberpunk names and 10 distinct personalities (Aggressive, Berserker, Coward, Chaotic, Explorer, Hermit, Mercenary, Social, Trader, Vigilante) that wander, fight, trade, and interact with players.
+- **AI Bot System**: Autonomous AI-controlled players with cyberpunk names and 9 distinct personalities (Aggressive, Coward, Chaotic, Explorer, Hermit, Mercenary, Social, Trader, Vigilante) that wander, fight, trade, and interact with players.
 
 ## Quick Start
 
@@ -43,9 +43,8 @@ For detailed MUD client setup instructions, see the [USER_GUIDE.md](USER_GUIDE.m
 ### AI Bots
 The grid is populated with AI-controlled players that:
 - Have cyberpunk-themed names (e.g., NeonShade, ChromeWraith, GlitchMonk)
-- Spawn with one of 10 distinct personalities that shape combat, social, and movement behavior:
+- Spawn with one of 9 distinct personalities that shape combat, social, and movement behavior:
   - **Aggressive**: Hunts players with high aggression
-  - **Berserker**: Fights to the death, never retreats, glass cannon
   - **Coward**: Flees from danger, fights only NPCs, rests early
   - **Chaotic**: Unpredictable - could help or backstab you
   - **Explorer**: Roams distant zones, avoids crowds, loves transporters

@@ -34,7 +34,7 @@ Key Features:
 - **Drug & Addiction**: Temporary stat boosts with dependency risk and withdrawal damage.
 - **Leaderboards**: Competitive ranking of the top adventurers and a "Wall of Death".
 - **Party System**: Team up with up to 3 players to explore the grid together.
-- **AI Bot System**: Autonomous AI players with cyberpunk names and 10 distinct personalities (Aggressive, Berserker, Coward, Chaotic, Explorer, Hermit, Mercenary, Social, Trader, Vigilante) that wander, fight, trade, and interact.
+- **AI Bot System**: Autonomous AI players with cyberpunk names and 9 distinct personalities (Aggressive, Coward, Chaotic, Explorer, Hermit, Mercenary, Social, Trader, Vigilante) that wander, fight, trade, and interact.
 
 ---
 
@@ -195,7 +195,6 @@ The grid is populated with autonomous AI-controlled players that behave like hum
 | Personality | Behavior |
 |-------------|----------|
 | **Aggressive** | Hunts players with high aggression; rarely groups. |
-| **Berserker** | Fights to the death, never retreats; lower HP (glass cannon). |
 | **Coward** | Flees from danger, fights only NPCs, rests early when injured. |
 | **Chaotic** | Unpredictable; may help or backstab you on any given tick. |
 | **Explorer** | Roams distant zones, avoids crowds, loves using transporters. |
@@ -208,7 +207,7 @@ The grid is populated with autonomous AI-controlled players that behave like hum
 Bots:
 - Wander the grid, fight NPCs, gain EXP, and level up independently of human players.
 - Buy gear from shops, pick up loot from the ground, and auto-train their stats.
-- Attack players based on their personality and karma alignment (e.g., Vigilantes hunt evildoers; Berserkers attack anyone).
+- Attack players based on their personality and karma alignment (e.g., Aggressives hunt players; Mercenaries hunt anyone for coin).
 - Invite players to parties (Social personalities most likely).
 - Appear in the `WHO` list and `TOP` rankings with a `(bot)` marker.
 - Are created via `python manage.py create_bots` (default 25 bots, configurable with `--count` and `--personality`).

@@ -55,12 +55,6 @@ BOT_PERSONALITIES = {
         "karma": (-30, 30),
         "description": "Flees at the first sign of danger, fights only NPCs.",
     },
-    "berserker": {
-        "aggression": (85, 100),
-        "social": (0, 20),
-        "karma": (-60, 20),
-        "description": "Fights to the death, never retreats, low self-preservation.",
-    },
     "hermit": {
         "aggression": (30, 60),
         "social": (0, 20),
@@ -121,16 +115,16 @@ BOT_NAMES = [
 
 # Sensible race/class combinations expanded for personality variety
 RACE_CLASS_COMBOS = [
-    ("Cyborg", "Street Samurai"), ("Cyborg", "Heavy"), ("Cyborg", "Berserker"),
+    ("Cyborg", "Street Samurai"), ("Cyborg", "Heavy"),
     ("Android", "Netrunner"), ("Android", "Techie"), ("Android", "Warlock"),
     ("Bio-hacked", "Medie"), ("Bio-hacked", "Psycher"), ("Bio-hacked", "Street Samurai"),
-    ("Mutant", "Heavy"), ("Mutant", "Jade Dragon"), ("Mutant", "Berserker"),
+    ("Mutant", "Heavy"), ("Mutant", "Jade Dragon"),
     ("Human", "Fixer"), ("Human", "Trickster"), ("Human", "Street Samurai"),
     ("Elf", "Thief"), ("Elf", "Jade Dragon"), ("Elf", "Ranger"),
-    ("Goblin", "Thief"), ("Goblin", "Trickster"), ("Goblin", "Berserker"),
+    ("Goblin", "Thief"), ("Goblin", "Trickster"),
     ("Void-Walker", "Psycher"), ("Void-Walker", "Warlock"), ("Void-Walker", "Thief"),
     ("Synth-Soul", "Netrunner"), ("Synth-Soul", "Warlock"), ("Synth-Soul", "Techie"),
-    ("Orc", "Street Samurai"), ("Orc", "Heavy"), ("Orc", "Berserker"),
+    ("Orc", "Street Samurai"), ("Orc", "Heavy"),
     ("Dark Elf", "Thief"), ("Dark Elf", "Assassin"),
 ]
 
@@ -252,7 +246,6 @@ class Command(BaseCommand):
                         "explorer": 8,
                         "coward": 6,
                         "vigilante": 6,
-                        "berserker": 5,
                         "hermit": 5,
                         "chaotic": 4,
                     }
@@ -298,7 +291,7 @@ class Command(BaseCommand):
                 cha_stat = random.randint(8, 12 + lvl)
 
                 # Apply personality stat bias
-                if personality in ("aggressive", "berserker", "mercenary"):
+                if personality in ("aggressive", "mercenary"):
                     str_stat += random.randint(2, 5)
                     hea_stat += random.randint(1, 3)
                 elif personality in ("vigilante", "social"):
@@ -320,11 +313,11 @@ class Command(BaseCommand):
                     stats_list[penal_idx] = max(3, stats_list[penal_idx] - random.randint(3, 6))
                     str_stat, int_stat, wil_stat, agi_stat, hea_stat, cha_stat = stats_list
 
-                # Berserkers and aggressive bots have lower self-preservation (fight to death)
+                # Aggressive/mercenary bots have lower self-preservation (fight to death)
                 # Cowards and traders have higher HP (run and survive)
                 hp_max = 100 + (hea_stat * 2) + (lvl * 20)
-                if personality == "berserker":
-                    hp_max = int(hp_max * 0.85)  # glass cannon
+                if personality in ("aggressive", "mercenary"):
+                    hp_max = int(hp_max * 0.9)  # slightly fragile
                 elif personality in ("coward", "trader", "explorer"):
                     hp_max = int(hp_max * 1.15)  # survivable
 
@@ -370,9 +363,9 @@ class Command(BaseCommand):
                 )
 
                 # Personality-biased gear equipping
-                # Aggressive/berserker: more likely to have weapon
+                # Aggressive/mercenary: more likely to have weapon
                 weapon_chance = 0.7
-                if personality in ("aggressive", "berserker", "mercenary"):
+                if personality in ("aggressive", "mercenary"):
                     weapon_chance = 0.9
                 elif personality in ("coward", "trader", "hermit"):
                     weapon_chance = 0.5
@@ -385,8 +378,6 @@ class Command(BaseCommand):
                 armor_chance = 0.5
                 if personality in ("trader", "social", "coward"):
                     armor_chance = 0.7
-                elif personality == "berserker":
-                    armor_chance = 0.3
 
                 if armor and random.random() < armor_chance:
                     armor_piece = random.choice(armor)

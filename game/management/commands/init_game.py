@@ -1589,7 +1589,7 @@ class Command(BaseCommand):
             # Create AI bots
             from django.core.management import call_command
 
-            call_command("create_bots", count=12, reset=False)
+            call_command("create_bots", count=20, reset=False)
 
             GameWorld.objects.all().delete()
             GameWorld.objects.create(

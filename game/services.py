@@ -4184,15 +4184,14 @@ def process_bot_ai(bot):
         return ""
 
     # Check if bot should rest (low HP) - but NOT if in combat.
-    # Personality affects self-preservation: berserkers fight to the death,
-    # cowards rest early, berserkers have lower HP thresholds.
+    # Personality affects self-preservation: cowards rest early, mercenaries fight hard.
     rest_threshold = 0.30
-    if bot.bot_personality == "berserker":
-        rest_threshold = 0.15  # fight until nearly dead
-    elif bot.bot_personality == "coward":
+    if bot.bot_personality == "coward":
         rest_threshold = 0.50  # panic and rest early
     elif bot.bot_personality in ("trader", "explorer"):
         rest_threshold = 0.35  # slightly cautious
+    elif bot.bot_personality in ("aggressive", "mercenary"):
+        rest_threshold = 0.15  # fight until nearly dead
     if bot.hp < bot.hp_max * rest_threshold and not bot.last_combat_npc and not bot.last_combat_player:
         rest_command(bot)
         return ""  # Bot is now resting or already resting
@@ -4212,12 +4211,12 @@ def process_bot_ai(bot):
                 if abs(bot.lvl - p.lvl) <= 4:
                     # Personality-driven player aggression
                     will_attack_player = False
-                    if bot.bot_personality == "berserker":
-                        will_attack_player = True  # berserkers attack anyone
-                    elif bot.bot_personality == "aggressive":
+                    if bot.bot_personality == "aggressive":
                         will_attack_player = bot.bot_aggression > 40
                     elif bot.bot_personality == "vigilante":
                         will_attack_player = p.karma < -20  # hunt the evil
+                    elif bot.bot_personality == "mercenary":
+                        will_attack_player = True  # fights anyone for coin
                     elif bot.bot_personality == "chaotic":
                         will_attack_player = random.random() < 0.5
                     elif bot.bot_personality == "mercenary":
@@ -4265,9 +4264,9 @@ def process_bot_ai(bot):
             break
 
     # Bot should move away if too close to shop (3-4 rooms) or starting room (3-4 rooms).
-    # Berserkers ignore this and fight anywhere; cowards flee from players.
+    # All bots avoid fights near shops/starting room.
     if target_npc or target_player:
-        if bot.bot_personality != "berserker" and (shop_dist <= 4 or start_dist <= 4 and start_dist != 999):
+        if shop_dist <= 4 or start_dist <= 4 and start_dist != 999:
             # Too close to a shop or starting room: move away instead of fighting.
             if room.exits:
                 direction = random.choice(list(room.exits.keys()))
@@ -4294,7 +4293,7 @@ def process_bot_ai(bot):
     social_threshold = 60
     if bot.bot_personality == "social":
         social_threshold = 30  # socialites invite almost anyone
-    elif bot.bot_personality in ("coward", "hermit", "berserker", "aggressive"):
+    elif bot.bot_personality in ("coward", "hermit", "aggressive"):
         social_threshold = 85  # loners and fighters rarely group
     if bot.bot_social > social_threshold and not bot.parties.exists() and players_here.exists():
         for p in players_here:
@@ -4308,20 +4307,9 @@ def process_bot_ai(bot):
         chat_chance = 0.35  # socialites talk a lot
     elif bot.bot_personality in ("hermit", "coward"):
         chat_chance = 0.05  # loners stay quiet
-    elif bot.bot_personality == "berserker":
-        chat_chance = 0.08  # berserkers grunt, rarely chat
     if players_here.exists() and random.random() < chat_chance:
         # Personality-specific chat pools
-        if bot.bot_personality == "berserker":
-            berserker_lines = [
-                "Blood for the grid!",
-                "I'll crush you.",
-                "Die screaming.",
-                "More targets.",
-                "Fight me.",
-            ]
-            message = random.choice(berserker_lines)
-        elif bot.bot_personality == "coward":
+        if bot.bot_personality == "coward":
             coward_lines = [
                 "Please don't hurt me.",
                 "I'm just passing through.",
@@ -4429,7 +4417,7 @@ def process_bot_ai(bot):
         shop_chance = 0.75
     elif bot.bot_personality == "social":
         shop_chance = 0.45
-    elif bot.bot_personality in ("hermit", "coward", "berserker"):
+    elif bot.bot_personality in ("hermit", "coward"):
         shop_chance = 0.10
     if bot.location.shop_name and random.random() < shop_chance:
         # Get class-appropriate weapons and armor from GEAR_LIMITS
@@ -4540,15 +4528,14 @@ def process_bot_ai(bot):
     npcs_nearby = npcs.exists()
     if room.exits:
         # Personality-based movement: explorers roam constantly, hermits avoid
-        # crowds, berserkers linger to fight, cowards skitter away from danger.
+        # crowds, cowards skitter away from danger.
         move_chance = 0.35 if npcs_nearby else 0.85
         if bot.bot_personality == "explorer":
             move_chance = 0.75 if npcs_nearby else 0.95  # always roaming
-        elif bot.bot_personality == "berserker":
-            move_chance = 0.20 if npcs_nearby else 0.60  # stick around to fight
         elif bot.bot_personality == "coward":
             move_chance = 0.60 if npcs_nearby else 0.90  # skittish
         elif bot.bot_personality == "hermit":
+            move_chance = 0.95 if npcs_nearby else 0.95  # avoid areas with combat
             # Hermits flee rooms that have players (they hunt alone)
             if players_here.exists():
                 move_chance = 0.95

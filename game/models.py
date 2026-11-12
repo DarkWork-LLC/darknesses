@@ -173,7 +173,7 @@ class Player(models.Model):
     bot_personality = models.CharField(
         max_length=20,
         default="wanderer",
-        help_text="Personality archetype: aggressive, mercenary, vigilante, social, trader, explorer, coward, berserker, hermit, chaotic",
+        help_text="Personality archetype: aggressive, mercenary, vigilante, social, trader, explorer, coward, hermit, chaotic",
     )
     last_bot_action = models.DateTimeField(null=True, blank=True)  # Track last AI action
 

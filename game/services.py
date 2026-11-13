@@ -2201,13 +2201,14 @@ def process_combat_tick(player):
         player.save(update_fields=["last_combat_tick"])
         return ""
 
-    # Combat tick every 3 seconds
-    if (now - player.last_combat_tick).total_seconds() >= 3:
+    # Combat tick every 3 seconds, OR immediately on first call after combat starts
+    if (now - player.last_combat_tick).total_seconds() >= 3 or player.auto_attack:
         player.last_combat_tick = now
         player.save(update_fields=["last_combat_tick"])
         # Fighting counts as activity - never AFK while exchanging blows
         touch_player_activity(player)
         if player.auto_attack:
+            # Execute attacks immediately (recurse only if still in combat)
             return combat_round(player)
         else:
             # Player is IDLE in combat, opponent takes advantage
@@ -4183,6 +4184,10 @@ def process_bot_ai(bot):
     if not room:
         return ""
 
+    # Respawn NPCs in the bot's room so bots always have targets to fight,
+    # even when no human player is present in that sector.
+    respawn_npcs(room)
+
     # Check if bot should rest (low HP) - but NOT if in combat.
     # Personality affects self-preservation: cowards rest early, mercenaries fight hard.
     rest_threshold = 0.30
@@ -4263,11 +4268,11 @@ def process_bot_ai(bot):
                 continue
             break
 
-    # Bot should move away if too close to shop (3-4 rooms) or starting room (3-4 rooms).
-    # All bots avoid fights near shops/starting room.
+    # Bot should move away if IN a shop or IN the starting room itself.
+    # Bots avoid fighting inside shops/starting rooms but can fight nearby.
     if target_npc or target_player:
-        if shop_dist <= 4 or start_dist <= 4 and start_dist != 999:
-            # Too close to a shop or starting room: move away instead of fighting.
+        if shop_dist == 0 or start_dist == 0:
+            # Inside a shop or starting room: move away instead of fighting.
             if room.exits:
                 direction = random.choice(list(room.exits.keys()))
                 move_player(bot, direction)
@@ -4282,9 +4287,10 @@ def process_bot_ai(bot):
     if target_npc or target_player:
         target_name = target_npc.name if target_npc else target_player.user.username
         # Mix class abilities into the fight (~60% of engagements) so bots
-        # actually fight like players and gain EXP/levels.
+        # actually fight like players and gain EXP/levels. Bots always attack.
         if random.random() < 0.6 and bot_try_use_ability(bot, target_name):
-            return ""
+            # Bot used an ability, but still ATTACK - don't skip combat
+            pass
         attack_target(bot, target_name, auto=True)
         return ""
 

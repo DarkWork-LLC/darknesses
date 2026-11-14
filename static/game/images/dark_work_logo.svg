@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 90" width="520" height="90">
+  <defs>
+    <linearGradient id="bw-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#a0a0a0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Cyberpunk Background Container -->
+  <rect x="2" y="2" width="516" height="86" rx="6" fill="#0a0a0a" stroke="#222222" stroke-width="1" stroke-dasharray="8 4"/>
+
+  <!-- ICON EMBLEM (Left: Center X=50, Y=45) -->
+  <g transform="translate(12, 10)">
+    <!-- Outer Octagonal HUD Frame -->
+    <polygon points="20,5 50,5 65,20 65,50 50,65 20,65 5,50 5,20" fill="#000000" stroke="#ffffff" stroke-width="2.5"/>
+
+    <!-- Outer Corner Accents / Tech Brackets -->
+    <path d="M 15,2 L 5,2 L 2,5 L 2,15" fill="none" stroke="#888888" stroke-width="1.5"/>
+    <path d="M 55,2 L 65,2 L 68,5 L 68,15" fill="none" stroke="#888888" stroke-width="1.5"/>
+    <path d="M 68,55 L 68,65 L 65,68 L 55,68" fill="none" stroke="#888888" stroke-width="1.5"/>
+    <path d="M 2,55 L 2,65 L 5,68 L 15,68" fill="none" stroke="#888888" stroke-width="1.5"/>
+
+    <!-- Inner Glitch Hexagon -->
+    <polygon points="23,10 47,10 59,22 59,48 47,60 23,60 11,48 11,22" fill="#141414" stroke="#ffffff" stroke-width="1"/>
+
+    <!-- Cyber Monogram "DW" Emblem inside Icon -->
+    <!-- 'D' shape left -->
+    <path d="M 20,20 L 33,20 C 41,20 44,24 44,28 C 44,32 41,36 33,36 L 20,36 Z" fill="#ffffff"/>
+    <path d="M 25,24 L 32,24 C 36,24 38,25 38,28 C 38,31 36,32 32,32 L 25,32 Z" fill="#141414"/>
+
+    <!-- 'W' shape right/lower -->
+    <path d="M 25,36 L 29,36 L 34,48 L 38,40 L 43,40 L 48,48 L 52,36 L 57,36 L 50,52 L 45,52 L 40,43 L 35,52 L 30,52 Z" fill="#ffffff"/>
+
+    <!-- Horizontal Scanline Cut across Emblem -->
+    <line x1="8" y1="34" x2="62" y2="34" stroke="#000000" stroke-width="2"/>
+    <line x1="12" y1="34" x2="58" y2="34" stroke="#ffffff" stroke-width="0.8" stroke-dasharray="3 2"/>
+
+    <!-- Data Nodes / Circuit Accents -->
+    <circle cx="20" cy="5" r="1.5" fill="#ffffff"/>
+    <circle cx="50" cy="5" r="1.5" fill="#ffffff"/>
+    <circle cx="65" cy="20" r="1.5" fill="#ffffff"/>
+    <circle cx="65" cy="50" r="1.5" fill="#ffffff"/>
+    <circle cx="50" cy="65" r="1.5" fill="#ffffff"/>
+    <circle cx="20" cy="65" r="1.5" fill="#ffffff"/>
+  </g>
+
+  <!-- TYPOGRAPHY: Dark Work Factory -->
+  <g transform="translate(95, 0)">
+    <!-- Cyber Brackets -->
+    <path d="M 0,22 L -4,22 L -4,68 L 0,68" fill="none" stroke="#444444" stroke-width="1.5"/>
+
+    <!-- Main Title Text "Dark Work Factory" -->
+    <!-- Shadow / Glitch layer -->
+    <text x="3" y="50" font-family="'Orbitron', 'Cinzel', 'Arial Black', sans-serif" font-size="32" font-weight="900" letter-spacing="4" fill="#333333">Dark Work Factory</text>
+    <!-- Foreground stark white text -->
+    <text x="0" y="48" font-family="'Orbitron', 'Cinzel', 'Arial Black', sans-serif" font-size="32" font-weight="900" letter-spacing="4" fill="#ffffff">Dark Work Factory</text>
+
+    <!-- Stylized Glitch Slices through text -->
+    <line x1="-2" y1="35" x2="355" y2="35" stroke="#0a0a0a" stroke-width="1.5"/>
+    <line x1="10" y1="35" x2="260" y2="35" stroke="#ffffff" stroke-width="1" stroke-dasharray="12 6 4 8"/>
+
+    <!-- Subtitle / LLC Tagline -->
+    <rect x="0" y="57" width="52" height="15" fill="#ffffff" rx="2"/>
+    <text x="6" y="68" font-family="'Orbitron', 'Courier New', monospace" font-size="11" font-weight="900" letter-spacing="2" fill="#000000">LLC</text>
+
+    <text x="62" y="68" font-family="'Orbitron', 'Courier New', monospace" font-size="10" font-weight="600" letter-spacing="3" fill="#888888">// SOFTWARE &amp; SERVICES</text>
+
+    <!-- Right HUD Accent (arrow sits above "Factory") -->
+    <line x1="363" y1="12" x2="388" y2="12" stroke="#ffffff" stroke-width="2"/>
+    <polygon points="388,9 394,12 388,15" fill="#ffffff"/>
+    <line x1="370" y1="67" x2="400" y2="67" stroke="#444444" stroke-width="1" stroke-dasharray="4 2"/>
+  </g>
+</svg>

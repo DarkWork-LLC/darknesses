@@ -2201,14 +2201,17 @@ def process_combat_tick(player):
         player.save(update_fields=["last_combat_tick"])
         return ""
 
-    # Combat tick every 3 seconds, OR immediately on first call after combat starts
-    if (now - player.last_combat_tick).total_seconds() >= 3 or player.auto_attack:
+    # Combat tick every 3 seconds
+    if (now - player.last_combat_tick).total_seconds() >= 3:
         player.last_combat_tick = now
         player.save(update_fields=["last_combat_tick"])
         # Fighting counts as activity - never AFK while exchanging blows
         touch_player_activity(player)
+        if player.is_bot:
+            t_name = target.name if target_npc else target.user.username
+            if random.random() < 0.35:
+                bot_try_use_ability(player, t_name)
         if player.auto_attack:
-            # Execute attacks immediately (recurse only if still in combat)
             return combat_round(player)
         else:
             # Player is IDLE in combat, opponent takes advantage
@@ -2502,6 +2505,7 @@ def use_ability(player, ability_name, target_name):
                 target.save(update_fields=["hp", "money", "location"])
                 res += f"\nYou neutralized {target.user.username}! "
                 res += f"+{exp_gain} exp, +{stolen} CR."
+                res += check_level_up(player)
         else:
             target.save(update_fields=["hp"])
             if is_crit:
@@ -3178,6 +3182,7 @@ def use_ability(player, ability_name, target_name):
                         target.save(update_fields=["hp", "money", "location"])
                         res += f"\nYou neutralized {target.user.username}! "
                         res += f"+{exp_gain} exp, +{stolen} CR."
+                        res += check_level_up(player)
                     else:
                         player.exp += target.exp_drop
                         player.money += target.money_drop
@@ -4167,11 +4172,11 @@ def process_bot_ai(bot):
         process_resting(bot)
         return ""
 
-    # Only act every 10-30 seconds (using persistent database field)
+    # Only act every 5 seconds out of combat
     now = timezone.now()
     if bot.last_bot_action:
         time_since_last = (now - bot.last_bot_action).total_seconds()
-        if time_since_last < random.randint(10, 30):
+        if time_since_last < 5:
             return ""
 
     # Update last action time (acting = not AFK)
@@ -4231,53 +4236,21 @@ def process_bot_ai(bot):
                         target_player = p
                         break
 
-        # Priority 3: Attack nearby NPCs (any NPC within level range, not just aggressive)
+        # Priority 3: Attack nearby NPCs (any living NPC in room)
         if not target_npc and not target_player:
             if npcs.exists():
-                valid_npcs = [n for n in npcs if abs(n.lvl - bot.lvl) <= 5]
+                valid_npcs = list(npcs)
                 if valid_npcs:
                     target_npc = random.choice(valid_npcs)
 
-    # Execute combat (without broadcasting to players - bots fight silently)
-    # Bots only fight 3-4 rooms away from shops and starting rooms.
-    # Check distance to nearest shop
-    shop_dist = distance_to_nearest_shop(room)
-    # Check distance to nearest starting room (hub, room ID 1)
-    if room.id == 1:
-        start_dist = 0
-    else:
-        from collections import deque
-        seen = {room.id}
-        q = deque([(room, 0)])
-        start_dist = 999
-        while q:
-            cur, d = q.popleft()
-            if cur.id == 1:
-                start_dist = d
-                break
-            for dest_id in (cur.exits or {}).values():
-                if dest_id in seen:
-                    continue
-                try:
-                    nxt = Room.objects.get(id=dest_id)
-                except Room.DoesNotExist:
-                    continue
-                seen.add(nxt.id)
-                q.append((nxt, d + 1))
-            else:
-                continue
-            break
-
-    # Bot should move away if IN a shop or IN the starting room itself.
-    # Bots avoid fighting inside shops/starting rooms but can fight nearby.
+    # Bot should move away if IN a shop or IN the starting room itself (Hub)
     if target_npc or target_player:
-        if shop_dist == 0 or start_dist == 0:
-            # Inside a shop or starting room: move away instead of fighting.
+        if room.id == 1 or getattr(room, "shop_name", None):
             if room.exits:
                 direction = random.choice(list(room.exits.keys()))
                 move_player(bot, direction)
             return ""
-        # Cowards flee from player targets rather than fighting them.
+        # Cowards flee from player targets rather than fighting them
         if target_player and bot.bot_personality == "coward":
             if room.exits:
                 direction = random.choice(list(room.exits.keys()))
@@ -4287,10 +4260,9 @@ def process_bot_ai(bot):
     if target_npc or target_player:
         target_name = target_npc.name if target_npc else target_player.user.username
         # Mix class abilities into the fight (~60% of engagements) so bots
-        # actually fight like players and gain EXP/levels. Bots always attack.
-        if random.random() < 0.6 and bot_try_use_ability(bot, target_name):
-            # Bot used an ability, but still ATTACK - don't skip combat
-            pass
+        # actually fight like players and gain EXP/levels.
+        if random.random() < 0.6:
+            bot_try_use_ability(bot, target_name)
         attack_target(bot, target_name, auto=True)
         return ""
 

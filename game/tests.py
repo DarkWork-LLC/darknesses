@@ -410,8 +410,10 @@ class BotAITests(TransactionTestCase):
 
         initial_hp = npc.hp
 
-        # Process NPC AI multiple times (with delay between calls)
+        # Process NPC AI multiple times (with simulated time progression)
         for i in range(20):
+            npc.last_move_time = timezone.now() - datetime.timedelta(seconds=20)
+            npc.save(update_fields=["last_move_time"])
             result = services.process_npc_ai(npc)
             npc.refresh_from_db()
             # NPC should heal when below 40% HP
@@ -456,6 +458,36 @@ class BotAITests(TransactionTestCase):
         self.assertEqual(self.bot.exp, 200)
         # NPC should be dead
         self.assertFalse(npc.hp > 0)
+
+    def test_bot_levels_up_and_spends_stat_points(self):
+        """Test that bots gain EXP across kills, level up, and train stat points."""
+        initial_lvl = self.bot.lvl
+        # Level 5 requires 5 * 120 = 600 EXP to level up
+        # Create an NPC that gives enough EXP to level up immediately
+        npc = NPC.objects.create(
+            name="Mega EXP Drone", location=self.combat_room, hp=1, hp_max=1,
+            attack=5, defense=2, lvl=2, money_drop=50, exp_drop=650,
+            aggressive=True, resistance="none", weakness="none",
+        )
+
+        self.bot.last_bot_action = None
+        self.bot.game_class = "Street Samurai"
+        self.bot.save(update_fields=["last_bot_action", "game_class"])
+
+        import unittest.mock as mock
+        with mock.patch("random.random", return_value=0.0):
+            services.process_bot_ai(self.bot)
+
+        self.bot.refresh_from_db()
+        self.assertEqual(self.bot.lvl, initial_lvl + 1, "Bot should have leveled up")
+        self.assertEqual(self.bot.exp, 50, "Bot should have remainder EXP (650 - 600)")
+
+        # Next AI tick should automatically train stat points
+        self.bot.last_bot_action = None
+        self.bot.save(update_fields=["last_bot_action"])
+        services.process_bot_ai(self.bot)
+        self.bot.refresh_from_db()
+        self.assertEqual(self.bot.stat_points, 0, "Bot should have spent stat points on level up")
 
     def test_get_poll_data_processes_bots_in_other_rooms(self):
         """Bots must be advanced by polls even when no player is in their room,
@@ -569,13 +601,17 @@ class PoisonBleedTest(TestCase):
             last_move_time=None,
         )
 
+        self.room = Room.objects.create(
+            id=999, name="Test Room", description="Test Room", zone="slums"
+        )
+
         # Create a bot player
         self.bot_user = User.objects.create_user(username="poisonbot", password="secret")
         self.bot = Player.objects.create(
             user=self.bot_user,
             race="Human",
             game_class="Thief",
-            location=None,
+            location=self.room,
             lvl=1,
             exp=0,
             money=1000,
@@ -604,7 +640,7 @@ class PoisonBleedTest(TestCase):
         # Create a weaponless NPC
         self.npc = NPC.objects.create(
             name="Drone",
-            location=None,
+            location=self.room,
             hp=100,
             hp_max=100,
             attack=5,
